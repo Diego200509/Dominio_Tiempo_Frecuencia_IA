@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Paquetes y builds
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Pruebas y cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Notebooks / herramientas
+.ipynb_checkpoints/
+
+# Variables locales
+.env
+.env.*
+
+# Archivos temporales
+*.tmp
+*.temp
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+
+# Archivos generados por instaladores locales
+pip-wheel-metadata/
+
