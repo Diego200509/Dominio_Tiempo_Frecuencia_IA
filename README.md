@@ -34,6 +34,11 @@ binaria -> RGB = (valor, valor, valor)
 Esto no recupera colores originales; solo permite presentar resultados en un
 formato RGB visible en la interfaz.
 
+El sistema procesa la imagen en RGB, escala de grises y binarizacion. Para la
+presentacion final, las imagenes de un solo canal se convierten nuevamente a RGB
+duplicando el valor del pixel en los tres canales, permitiendo visualizarlas
+correctamente en la interfaz.
+
 ## Instalacion
 
 Se recomienda crear un entorno virtual:

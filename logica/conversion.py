@@ -10,7 +10,6 @@ def convertir_rgb_a_gris_manual(imagen_rgb):
     La conversion se hace recorriendo pixel por pixel para que el proceso sea
     claro y defendible academicamente.
     """
-    imagen_rgb = imagen_rgb.convert("RGB")
     datos = np.array(imagen_rgb, dtype=np.uint8)
     alto, ancho, _ = datos.shape
     gris = np.zeros((alto, ancho), dtype=np.uint8)
@@ -96,7 +95,9 @@ def preparar_gris_para_frecuencia(imagen_gris, tamano=1024):
 def convertir_gris_a_rgb(imagen_gris):
     """
     Convierte una imagen de un canal a RGB duplicando el valor en R, G y B.
-    No recupera color; solo prepara la visualizacion final en formato RGB.
+    La conversion a RGB para presentacion no recupera los colores originales;
+    unicamente duplica el canal gris o binario en R, G y B para mostrar la
+    imagen en formato RGB.
     """
     alto, ancho = imagen_gris.shape
     salida = np.zeros((alto, ancho, 3), dtype=np.uint8)
