@@ -93,5 +93,27 @@ def preparar_gris_para_frecuencia(imagen_gris, tamano=1024):
     return redimensionar_gris_bilineal_manual(imagen_gris, tamano, tamano)
 
 
+def convertir_gris_a_rgb(imagen_gris):
+    """
+    Convierte una imagen de un canal a RGB duplicando el valor en R, G y B.
+    No recupera color; solo prepara la visualizacion final en formato RGB.
+    """
+    alto, ancho = imagen_gris.shape
+    salida = np.zeros((alto, ancho, 3), dtype=np.uint8)
+
+    for y in range(alto):
+        for x in range(ancho):
+            valor = int(imagen_gris[y, x])
+            salida[y, x, 0] = valor
+            salida[y, x, 1] = valor
+            salida[y, x, 2] = valor
+
+    return salida
+
+
+def arreglo_rgb_a_imagen_pil(imagen_rgb):
+    return Image.fromarray(imagen_rgb.astype(np.uint8), mode="RGB")
+
+
 def arreglo_gris_a_imagen_pil(imagen_gris):
     return Image.fromarray(imagen_gris.astype(np.uint8), mode="L")

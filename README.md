@@ -1,21 +1,38 @@
 # Procesamiento Digital de Imagenes
 
-Proyecto academico en Python para mostrar procesamiento de imagenes en el
-dominio espacial y en el dominio de frecuencia, con una interfaz grafica clara
-hecha en Tkinter.
+Proyecto academico en Python para procesamiento digital de imagenes en:
+
+- Preprocesamiento.
+- Dominio espacial.
+- Dominio de frecuencia.
+
+La interfaz esta hecha con Tkinter y el codigo esta organizado separando la
+interfaz de la logica de procesamiento.
 
 ## Objetivo
 
-El programa permite cargar una imagen RGB desde el equipo, mostrarla en la
-interfaz y trabajar internamente con una version en escala de grises calculada
-manualmente con:
+El programa permite cargar una imagen RGB desde el equipo y demostrar un flujo
+completo de tratamiento de imagenes:
 
 ```text
-gris = 0.299R + 0.587G + 0.114B
+RGB original
+-> escala de grises
+-> normalizacion de histograma
+-> binarizacion
+-> ruido sal y pimienta
+-> filtros espaciales o procesamiento en frecuencia
 ```
 
-La conversion no usa `cv2.cvtColor`; se recorre cada pixel y se calcula el
-valor gris con la formula anterior.
+Las imagenes de un canal se muestran en formato RGB duplicando el valor en los
+tres canales:
+
+```text
+gris -> RGB = (gris, gris, gris)
+binaria -> RGB = (valor, valor, valor)
+```
+
+Esto no recupera colores originales; solo permite presentar resultados en un
+formato RGB visible en la interfaz.
 
 ## Instalacion
 
@@ -33,62 +50,131 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Desde la interfaz se debe presionar **Cargar imagen** y seleccionar cualquier
-archivo `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif` o `.tiff`.
+Luego presiona **Cargar imagen** y selecciona cualquier archivo `.png`, `.jpg`,
+`.jpeg`, `.bmp`, `.tif` o `.tiff`.
+
+## Preprocesamiento
+
+La primera pestaña muestra:
+
+- Imagen original RGB.
+- Imagen en escala de grises.
+- Imagen con histograma normalizado.
+- Imagen binarizada.
+
+La conversion RGB a escala de grises se realiza manualmente pixel por pixel:
+
+```text
+gris = 0.299R + 0.587G + 0.114B
+```
+
+La normalizacion de histograma se implementa manualmente calculando minimo y
+maximo de la imagen y llevando los valores al rango `0..255`.
+
+La binarizacion se implementa manualmente con un umbral fijo de `128`:
+
+```text
+si valor >= 128 -> 255
+si valor < 128  -> 0
+```
 
 ## Dominio espacial
 
-El dominio espacial trabaja directamente sobre los pixeles de la imagen.
-Primero se convierte la imagen RGB a escala de grises de forma manual. Luego
-se puede agregar ruido sal y pimienta usando el slider de porcentaje.
+El dominio espacial usa como base la imagen ya procesada en background:
 
-El ruido sal y pimienta se implementa modificando pixeles aleatorios:
+```text
+RGB -> gris -> normalizacion -> binarizacion
+```
 
-- Pimienta: el pixel se cambia a 0.
-- Sal: el pixel se cambia a 255.
+Sobre esa imagen binarizada se agrega ruido sal y pimienta manualmente:
 
-Despues se puede aplicar uno de estos filtros, todos con ventana 3x3:
+- Pimienta: pixeles cambiados a `0`.
+- Sal: pixeles cambiados a `255`.
 
-- Filtro de media: suma los 9 vecinos y divide para 9.
-- Filtro de mediana: ordena los 9 valores y toma el valor central.
-- Filtro de moda: cuenta frecuencias y toma el valor mas repetido.
+No se usa `imnoise` ni equivalentes automaticos.
 
-Tambien se implementa manualmente el padding por replicacion de bordes. No se
-usan `cv2.blur`, `cv2.medianBlur`, `cv2.GaussianBlur`, `cv2.filter2D`,
-`scipy.ndimage` ni `skimage.filters`.
+Luego se aplica un filtro manual sobre la imagen con ruido:
+
+- Filtro de media: recorre una ventana `3x3`, suma los 9 valores y divide para 9.
+- Filtro de mediana: ordena los 9 valores de la ventana y toma el central.
+- Filtro de moda: cuenta frecuencias de los 9 valores y toma el mas repetido.
+
+El padding se realiza manualmente por replicacion de bordes.
 
 ## Dominio de frecuencia
 
-El dominio de frecuencia analiza la imagen mediante la Transformada Discreta
-de Fourier. Para mejorar la calidad visual, la imagen se prepara a 1024x1024
-con interpolacion bilineal manual antes de calcular Fourier.
+El dominio de frecuencia tambien usa como base la imagen procesada:
 
-La transformada tiene dos rutas en `logica/frecuencia.py`:
+```text
+RGB -> gris -> normalizacion -> binarizacion
+```
 
-- Ruta optimizada principal: usa `numpy.fft.fft2` y `numpy.fft.ifft2` para
-  obtener mejor calidad y velocidad con imagenes mas grandes.
-- Ruta manual didactica: conserva una DFT/IDFT propia separable por filas y
-  columnas, util para explicar el procedimiento en la defensa academica.
+El flujo aplicado es:
 
-En la version manual se usa el siguiente proceso:
+```text
+imagen base binarizada
+-> Fourier
+-> centrar espectro
+-> mascara circular central
+-> espectro centrado * mascara
+-> descentrar espectro
+-> transformada inversa
+-> parte real
+-> normalizacion 0..255
+-> imagen reconstruida
+```
 
-1. DFT manual por filas.
-2. DFT manual por columnas.
-3. Desplazamiento manual del espectro hacia el centro.
-4. Visualizacion del espectro de magnitud con escala logaritmica.
-5. Mascara circular central creada pixel por pixel.
-6. IDFT manual para reconstruir la imagen.
+La interfaz principal usa `numpy.fft.fft2` y `numpy.fft.ifft2` para calcular
+Fourier con buena calidad visual y tiempos razonables. No se usa OpenCV ni
+`cv2.dft`.
 
-El circulo central conserva principalmente bajas frecuencias. Si el diametro
-es pequeno, la imagen reconstruida se ve mas suavizada o borrosa. Al aumentar
-el diametro, se conservan mas componentes frecuenciales, incluyendo detalles y
-bordes.
+Tambien se conserva una DFT/IDFT manual separable por filas y columnas en
+`logica/frecuencia.py` como referencia didactica para explicar el procedimiento.
 
-En la interfaz, el panel del espectro muestra la mascara circular actual: la
-zona dentro del circulo queda resaltada, la zona externa se oscurece y el borde
-blanco indica el diametro seleccionado. Asi se puede observar visualmente que
-parte del espectro se conserva, de forma similar a una mascara pasa bajo ideal
-en MATLAB.
+La mascara circular central se calcula manualmente:
+
+```text
+distancia = sqrt((x - centro_x)^2 + (y - centro_y)^2)
+si distancia <= radio -> 1
+si distancia > radio  -> 0
+```
+
+El radio es:
+
+```text
+radio = diametro / 2
+```
+
+El diametro se controla con un slider. Si el diametro es pequeno, se conservan
+principalmente bajas frecuencias y la imagen se ve mas suavizada. Si el
+diametro aumenta, se conservan mas componentes y se recuperan detalles y bordes.
+
+El espectro se visualiza con magnitud logaritmica `log(1 + magnitud)` y
+normalizacion manual a `0..255`. La interfaz muestra un circulo blanco sobre el
+espectro para indicar que parte se conserva.
+
+## Restricciones cumplidas
+
+No se usan funciones automaticas para los calculos principales:
+
+- No `cv2.cvtColor`.
+- No `cv2.equalizeHist`.
+- No `cv2.threshold`.
+- No `cv2.blur`.
+- No `cv2.medianBlur`.
+- No `cv2.GaussianBlur`.
+- No `cv2.filter2D`.
+- No `scipy.ndimage`.
+- No `skimage.filters`.
+- No `imnoise`.
+
+Las librerias se usan para:
+
+- Cargar imagenes con Pillow.
+- Mostrar imagenes con Pillow/Tkinter.
+- Crear la interfaz con Tkinter.
+- Manejo basico de arreglos con NumPy.
+- Fourier optimizado con `numpy.fft` en la ruta principal de frecuencia.
 
 ## Estructura
 
@@ -106,6 +192,8 @@ proyecto_procesamiento_imagenes/
 |-- logica/
 |   |-- __init__.py
 |   |-- conversion.py
+|   |-- histograma.py
+|   |-- binarizacion.py
 |   |-- ruido.py
 |   |-- filtros_espaciales.py
 |   |-- frecuencia.py
@@ -118,15 +206,17 @@ proyecto_procesamiento_imagenes/
 ## Funciones implementadas manualmente
 
 - Conversion RGB a escala de grises.
+- Normalizacion de histograma por minimo y maximo.
+- Binarizacion por umbral.
+- Conversion de gris/binaria a RGB duplicando canales.
 - Ruido sal y pimienta.
 - Padding por replicacion.
-- Filtro de media 3x3.
-- Filtro de mediana 3x3.
-- Filtro de moda 3x3.
+- Filtro de media `3x3`.
+- Filtro de mediana `3x3`.
+- Filtro de moda `3x3`.
 - Redimensionamiento por vecino mas cercano e interpolacion bilineal manual.
 - DFT 1D, DFT 2D e IDFT 2D manuales como referencia didactica.
-- DFT 2D e IDFT 2D optimizadas con `numpy.fft` para la interfaz principal.
-- Centrando del espectro.
+- Centrado y descentrado manual del espectro.
 - Mascara circular central.
-- Visualizacion del espectro con mascara circular resaltada.
-- Aplicacion de la mascara en frecuencia.
+- Aplicacion manual de la mascara en frecuencia.
+- Normalizacion manual de espectro y reconstruccion.

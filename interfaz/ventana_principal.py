@@ -3,29 +3,39 @@ from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image, ImageTk
 
-from logica.conversion import arreglo_gris_a_imagen_pil, convertir_rgb_a_gris_manual
+from logica.binarizacion import binarizar_manual
+from logica.conversion import (
+    arreglo_rgb_a_imagen_pil,
+    convertir_gris_a_rgb,
+    convertir_rgb_a_gris_manual,
+)
 from logica.filtros_espaciales import aplicar_filtro_manual
 from logica.frecuencia import (
     obtener_espectro_con_mascara_visible,
     preparar_transformada_frecuencia,
     reconstruir_desde_diametro,
 )
+from logica.histograma import normalizar_histograma_manual
 from logica.ruido import agregar_ruido_sal_pimienta_manual
 
 
 TAMANO_FRECUENCIA = 1024
+UMBRAL_BINARIZACION = 128
 
 
 class VentanaPrincipal(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Procesamiento Digital de Imagenes - Dominios Espacial y Frecuencia")
-        self.geometry("1180x760")
-        self.minsize(980, 650)
+        self.geometry("1240x800")
+        self.minsize(1060, 680)
         self.configure(bg="#f5f7fb")
 
         self.imagen_original = None
         self.imagen_gris = None
+        self.imagen_normalizada = None
+        self.imagen_binarizada = None
+
         self.imagen_con_ruido = None
         self.imagen_resultado_espacial = None
 
@@ -35,10 +45,13 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_resultado_frecuencia = None
 
         self.referencias_imagenes = {}
+        self.actualizacion_ruido_pendiente = None
         self.actualizacion_frecuencia_pendiente = None
+        self.lienzo_scroll_activo = None
 
         self._configurar_estilos()
         self._crear_interfaz()
+        self.bind_all("<MouseWheel>", self._mover_scroll_activo)
 
     def _configurar_estilos(self):
         estilo = ttk.Style()
@@ -70,32 +83,87 @@ class VentanaPrincipal(tk.Tk):
         )
         titulo.pack(side="left")
 
-        boton_cargar = ttk.Button(
+        ttk.Button(
+            barra_superior,
+            text="Limpiar resultados",
+            command=self.limpiar_resultados,
+        ).pack(side="right", padx=(10, 0))
+
+        ttk.Button(
             barra_superior,
             text="Cargar imagen",
             style="Accent.TButton",
             command=self.cargar_imagen,
-        )
-        boton_cargar.pack(side="right")
+        ).pack(side="right")
 
         self.pestanas = ttk.Notebook(contenedor)
         self.pestanas.pack(fill="both", expand=True)
 
-        self.tab_espacial = ttk.Frame(self.pestanas, padding=14)
-        self.tab_frecuencia = ttk.Frame(self.pestanas, padding=14)
-        self.pestanas.add(self.tab_espacial, text="Dominio espacial")
-        self.pestanas.add(self.tab_frecuencia, text="Dominio de frecuencia")
+        contenedor_pre, self.tab_preprocesamiento = self._crear_pestana_con_scroll("Preprocesamiento")
+        contenedor_espacial, self.tab_espacial = self._crear_pestana_con_scroll("Dominio espacial")
+        contenedor_frecuencia, self.tab_frecuencia = self._crear_pestana_con_scroll("Dominio de frecuencia")
+        self.pestanas.add(contenedor_pre, text="Preprocesamiento")
+        self.pestanas.add(contenedor_espacial, text="Dominio espacial")
+        self.pestanas.add(contenedor_frecuencia, text="Dominio de frecuencia")
 
+        self._crear_tab_preprocesamiento()
         self._crear_tab_espacial()
         self._crear_tab_frecuencia()
 
-    def _crear_tab_espacial(self):
-        self.tab_espacial.columnconfigure((0, 1, 2), weight=1, uniform="imagenes")
-        self.tab_espacial.rowconfigure(0, weight=1)
+    def _crear_pestana_con_scroll(self, _nombre):
+        contenedor = ttk.Frame(self.pestanas)
+        lienzo = tk.Canvas(contenedor, background="#f5f7fb", highlightthickness=0)
+        barra = ttk.Scrollbar(contenedor, orient="vertical", command=lienzo.yview)
+        contenido = ttk.Frame(lienzo, padding=14)
+        ventana = lienzo.create_window((0, 0), window=contenido, anchor="nw")
 
-        self.lbl_original_espacial = self._crear_panel_imagen(self.tab_espacial, 0, "Imagen original")
-        self.lbl_ruido = self._crear_panel_imagen(self.tab_espacial, 1, "Imagen sal y pimienta")
-        self.lbl_resultado_espacial = self._crear_panel_imagen(self.tab_espacial, 2, "Imagen resultante")
+        lienzo.configure(yscrollcommand=barra.set)
+        lienzo.pack(side="left", fill="both", expand=True)
+        barra.pack(side="right", fill="y")
+
+        def ajustar_region(_evento):
+            lienzo.configure(scrollregion=lienzo.bbox("all"))
+
+        def ajustar_ancho(evento):
+            lienzo.itemconfigure(ventana, width=evento.width)
+
+        contenido.bind("<Configure>", ajustar_region)
+        lienzo.bind("<Configure>", ajustar_ancho)
+        lienzo.bind("<Enter>", lambda _evento: self._activar_scroll(lienzo))
+        lienzo.bind("<Leave>", lambda _evento: self._desactivar_scroll(lienzo))
+        contenido.bind("<Enter>", lambda _evento: self._activar_scroll(lienzo))
+        return contenedor, contenido
+
+    def _activar_scroll(self, lienzo):
+        self.lienzo_scroll_activo = lienzo
+
+    def _desactivar_scroll(self, lienzo):
+        if self.lienzo_scroll_activo == lienzo:
+            self.lienzo_scroll_activo = None
+
+    def _mover_scroll_activo(self, evento):
+        if self.lienzo_scroll_activo is not None:
+            self.lienzo_scroll_activo.yview_scroll(int(-1 * (evento.delta / 120)), "units")
+
+    def _crear_tab_preprocesamiento(self):
+        for columna in range(2):
+            self.tab_preprocesamiento.columnconfigure(columna, weight=1, uniform="pre_columnas")
+        for fila in range(2):
+            self.tab_preprocesamiento.rowconfigure(fila, weight=1, uniform="pre_filas", minsize=430)
+
+        self.lbl_pre_original = self._crear_panel_imagen(self.tab_preprocesamiento, 0, 0, "Imagen original RGB")
+        self.lbl_pre_gris = self._crear_panel_imagen(self.tab_preprocesamiento, 0, 1, "Escala de grises")
+        self.lbl_pre_normalizada = self._crear_panel_imagen(self.tab_preprocesamiento, 1, 0, "Histograma normalizado")
+        self.lbl_pre_binarizada = self._crear_panel_imagen(self.tab_preprocesamiento, 1, 1, "Imagen binarizada")
+
+    def _crear_tab_espacial(self):
+        for columna in range(3):
+            self.tab_espacial.columnconfigure(columna, weight=1, uniform="espacial_columnas")
+        self.tab_espacial.rowconfigure(0, weight=1, minsize=520)
+
+        self.lbl_base_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 0, "Base binarizada")
+        self.lbl_ruido = self._crear_panel_imagen(self.tab_espacial, 0, 1, "Ruido sal y pimienta")
+        self.lbl_resultado_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 2, "Imagen filtrada")
 
         controles = ttk.Frame(self.tab_espacial, style="Panel.TFrame", padding=16)
         controles.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(14, 0))
@@ -124,12 +192,13 @@ class VentanaPrincipal(tk.Tk):
         ttk.Button(controles, text="Limpiar resultados", command=self.limpiar_espacial).grid(row=1, column=4, sticky="e", pady=(14, 0))
 
     def _crear_tab_frecuencia(self):
-        self.tab_frecuencia.columnconfigure((0, 1, 2), weight=1, uniform="imagenes")
-        self.tab_frecuencia.rowconfigure(0, weight=1)
+        for columna in range(3):
+            self.tab_frecuencia.columnconfigure(columna, weight=1, uniform="frecuencia_columnas")
+        self.tab_frecuencia.rowconfigure(0, weight=1, minsize=520)
 
-        self.lbl_original_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, "Imagen original en grises")
-        self.lbl_espectro = self._crear_panel_imagen(self.tab_frecuencia, 1, "Imagen espectro")
-        self.lbl_resultado_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 2, "Imagen reconstruida")
+        self.lbl_base_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, 0, "Base binarizada")
+        self.lbl_espectro = self._crear_panel_imagen(self.tab_frecuencia, 0, 1, "Imagen espectro")
+        self.lbl_resultado_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, 2, "Imagen reconstruida")
 
         controles = ttk.Frame(self.tab_frecuencia, style="Panel.TFrame", padding=16)
         controles.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(14, 0))
@@ -152,9 +221,9 @@ class VentanaPrincipal(tk.Tk):
         ttk.Button(controles, text="Procesar frecuencia", command=self.procesar_frecuencia).grid(row=0, column=3, padx=(0, 14))
         ttk.Button(controles, text="Limpiar resultados", command=self.limpiar_frecuencia).grid(row=0, column=4, sticky="e")
 
-    def _crear_panel_imagen(self, padre, columna, titulo):
+    def _crear_panel_imagen(self, padre, fila, columna, titulo):
         panel = ttk.Frame(padre, style="Panel.TFrame", padding=14)
-        panel.grid(row=0, column=columna, sticky="nsew", padx=6)
+        panel.grid(row=fila, column=columna, sticky="nsew", padx=6, pady=6)
         panel.rowconfigure(1, weight=1)
         panel.columnconfigure(0, weight=1)
 
@@ -177,38 +246,50 @@ class VentanaPrincipal(tk.Tk):
         try:
             self.imagen_original = Image.open(ruta).convert("RGB")
             self.imagen_gris = convertir_rgb_a_gris_manual(self.imagen_original)
+            self.imagen_normalizada = normalizar_histograma_manual(self.imagen_gris)
+            self.imagen_binarizada = binarizar_manual(self.imagen_normalizada, UMBRAL_BINARIZACION)
         except Exception as error:
-            messagebox.showerror("Error", f"No se pudo cargar la imagen:\n{error}")
+            messagebox.showerror("Error", f"No se pudo cargar o preprocesar la imagen:\n{error}")
             return
 
+        self._reiniciar_resultados_derivados()
+        self._mostrar_preprocesamiento()
+        self._mostrar_imagen_gris(self.lbl_base_espacial, self.imagen_binarizada, "base_espacial")
+        self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_binarizada, "base_frecuencia")
+
+    def _mostrar_preprocesamiento(self):
+        self._mostrar_imagen_pil(self.lbl_pre_original, self.imagen_original, "pre_original")
+        self._mostrar_imagen_gris(self.lbl_pre_gris, self.imagen_gris, "pre_gris")
+        self._mostrar_imagen_gris(self.lbl_pre_normalizada, self.imagen_normalizada, "pre_normalizada")
+        self._mostrar_imagen_gris(self.lbl_pre_binarizada, self.imagen_binarizada, "pre_binarizada")
+
+    def _reiniciar_resultados_derivados(self):
+        self._cancelar_actualizacion_ruido_pendiente()
+        self._cancelar_actualizacion_frecuencia_pendiente()
         self.imagen_con_ruido = None
         self.imagen_resultado_espacial = None
-        self._cancelar_actualizacion_frecuencia_pendiente()
         self.imagen_frecuencia_base = None
         self.espectro_centrado = None
         self.espectro_visible = None
         self.imagen_resultado_frecuencia = None
-
-        self._mostrar_imagen_pil(self.lbl_original_espacial, self.imagen_original, "original_espacial")
-        self._mostrar_imagen_gris(self.lbl_original_frecuencia, self.imagen_gris, "original_frecuencia")
         self._limpiar_etiqueta_imagen(self.lbl_ruido)
         self._limpiar_etiqueta_imagen(self.lbl_resultado_espacial)
         self._limpiar_etiqueta_imagen(self.lbl_espectro)
         self._limpiar_etiqueta_imagen(self.lbl_resultado_frecuencia)
 
     def aplicar_ruido(self):
-        if self.imagen_gris is None:
+        if self.imagen_binarizada is None:
             messagebox.showwarning("Advertencia", "Primero debe cargar una imagen.")
             return
 
         porcentaje = self.slider_ruido.get()
-        self.imagen_con_ruido = agregar_ruido_sal_pimienta_manual(self.imagen_gris, porcentaje)
+        self.imagen_con_ruido = agregar_ruido_sal_pimienta_manual(self.imagen_binarizada, porcentaje)
         self.imagen_resultado_espacial = None
         self._mostrar_imagen_gris(self.lbl_ruido, self.imagen_con_ruido, "ruido")
         self._limpiar_etiqueta_imagen(self.lbl_resultado_espacial)
 
     def aplicar_filtro(self):
-        if self.imagen_gris is None:
+        if self.imagen_binarizada is None:
             messagebox.showwarning("Advertencia", "Primero debe cargar una imagen.")
             return
         if self.imagen_con_ruido is None:
@@ -231,7 +312,7 @@ class VentanaPrincipal(tk.Tk):
             self.config(cursor="")
 
     def procesar_frecuencia(self):
-        if self.imagen_gris is None:
+        if self.imagen_binarizada is None:
             messagebox.showwarning("Advertencia", "Primero debe cargar una imagen.")
             return
 
@@ -243,10 +324,10 @@ class VentanaPrincipal(tk.Tk):
 
             if self.espectro_centrado is None:
                 self.imagen_frecuencia_base, self.espectro_centrado, self.espectro_visible = preparar_transformada_frecuencia(
-                    self.imagen_gris,
+                    self.imagen_binarizada,
                     tamano=TAMANO_FRECUENCIA,
                 )
-                self._mostrar_imagen_gris(self.lbl_original_frecuencia, self.imagen_frecuencia_base, "frecuencia_base")
+                self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_frecuencia_base, "frecuencia_base")
 
             self._reconstruir_frecuencia_con_diametro(diametro)
         except Exception as error:
@@ -254,16 +335,18 @@ class VentanaPrincipal(tk.Tk):
         finally:
             self.config(cursor="")
 
-    def _procesar_frecuencia_al_soltar(self, _evento):
-        if self.espectro_centrado is not None:
-            self._cancelar_actualizacion_frecuencia_pendiente()
-            self.procesar_frecuencia()
+    def limpiar_resultados(self):
+        self.limpiar_espacial()
+        self.limpiar_frecuencia()
 
     def limpiar_espacial(self):
+        self._cancelar_actualizacion_ruido_pendiente()
         self.imagen_con_ruido = None
         self.imagen_resultado_espacial = None
         self._limpiar_etiqueta_imagen(self.lbl_ruido)
         self._limpiar_etiqueta_imagen(self.lbl_resultado_espacial)
+        if self.imagen_binarizada is not None:
+            self._mostrar_imagen_gris(self.lbl_base_espacial, self.imagen_binarizada, "base_espacial")
 
     def limpiar_frecuencia(self):
         self._cancelar_actualizacion_frecuencia_pendiente()
@@ -271,15 +354,21 @@ class VentanaPrincipal(tk.Tk):
         self.espectro_centrado = None
         self.espectro_visible = None
         self.imagen_resultado_frecuencia = None
-        if self.imagen_gris is not None:
-            self._mostrar_imagen_gris(self.lbl_original_frecuencia, self.imagen_gris, "original_frecuencia")
-        else:
-            self._limpiar_etiqueta_imagen(self.lbl_original_frecuencia)
         self._limpiar_etiqueta_imagen(self.lbl_espectro)
         self._limpiar_etiqueta_imagen(self.lbl_resultado_frecuencia)
+        if self.imagen_binarizada is not None:
+            self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_binarizada, "base_frecuencia")
 
     def _actualizar_valor_ruido(self, valor):
         self.valor_ruido.configure(text=f"{int(float(valor))} %")
+        if self.imagen_con_ruido is not None:
+            self._cancelar_actualizacion_ruido_pendiente()
+            self.actualizacion_ruido_pendiente = self.after(250, self._reaplicar_ruido_desde_slider)
+
+    def _reaplicar_ruido_desde_slider(self):
+        self.actualizacion_ruido_pendiente = None
+        if self.imagen_binarizada is not None:
+            self.aplicar_ruido()
 
     def _actualizar_valor_diametro(self, valor):
         diametro = int(float(valor))
@@ -290,6 +379,11 @@ class VentanaPrincipal(tk.Tk):
                 300,
                 lambda: self._reconstruir_frecuencia_con_diametro(diametro),
             )
+
+    def _procesar_frecuencia_al_soltar(self, _evento):
+        if self.espectro_centrado is not None:
+            self._cancelar_actualizacion_frecuencia_pendiente()
+            self.procesar_frecuencia()
 
     def _reconstruir_frecuencia_con_diametro(self, diametro):
         self.actualizacion_frecuencia_pendiente = None
@@ -309,13 +403,19 @@ class VentanaPrincipal(tk.Tk):
         )
         self._mostrar_imagen_gris(self.lbl_espectro, espectro_mascara, "espectro")
 
+    def _cancelar_actualizacion_ruido_pendiente(self):
+        if self.actualizacion_ruido_pendiente is not None:
+            self.after_cancel(self.actualizacion_ruido_pendiente)
+            self.actualizacion_ruido_pendiente = None
+
     def _cancelar_actualizacion_frecuencia_pendiente(self):
         if self.actualizacion_frecuencia_pendiente is not None:
             self.after_cancel(self.actualizacion_frecuencia_pendiente)
             self.actualizacion_frecuencia_pendiente = None
 
     def _mostrar_imagen_gris(self, etiqueta, arreglo, clave):
-        imagen = arreglo_gris_a_imagen_pil(arreglo)
+        imagen_rgb = convertir_gris_a_rgb(arreglo)
+        imagen = arreglo_rgb_a_imagen_pil(imagen_rgb)
         self._mostrar_imagen_pil(etiqueta, imagen, clave)
 
     def _mostrar_imagen_pil(self, etiqueta, imagen, clave):
@@ -331,7 +431,7 @@ class VentanaPrincipal(tk.Tk):
         if max_ancho < 220:
             max_ancho = 360
         if max_alto < 220:
-            max_alto = 420
+            max_alto = 320
 
         ancho, alto = imagen.size
         escala = min(max_ancho / ancho, max_alto / alto)
