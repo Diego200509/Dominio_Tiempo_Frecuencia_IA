@@ -33,3 +33,19 @@ def normalizar_histograma_manual(imagen_gris):
             salida[y, x] = max(0, min(255, int(round(valor))))
 
     return salida
+
+
+def calcular_histograma_manual(imagen_gris):
+    """
+    Calcula el histograma de una imagen de un canal contando manualmente
+    cuantas veces aparece cada nivel de intensidad entre 0 y 255.
+    """
+    alto, ancho = imagen_gris.shape
+    histograma = [0] * 256
+
+    for y in range(alto):
+        for x in range(ancho):
+            valor = int(imagen_gris[y, x])
+            histograma[valor] += 1
+
+    return histograma

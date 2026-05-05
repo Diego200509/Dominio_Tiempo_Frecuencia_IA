@@ -66,6 +66,7 @@ La primera pestaña muestra:
 - Imagen en escala de grises.
 - Imagen con histograma normalizado.
 - Imagen binarizada.
+- Grafico comparativo del histograma original en grises y el histograma normalizado.
 
 La conversion RGB a escala de grises se realiza manualmente pixel por pixel:
 
@@ -75,6 +76,8 @@ gris = 0.299R + 0.587G + 0.114B
 
 La normalizacion de histograma se implementa manualmente calculando minimo y
 maximo de la imagen y llevando los valores al rango `0..255`.
+Tambien se calcula manualmente una comparativa de histogramas contando cuantos
+pixeles pertenecen a cada nivel de intensidad entre `0` y `255`.
 
 La binarizacion se implementa manualmente con un umbral fijo de `128`:
 
@@ -212,6 +215,7 @@ proyecto_procesamiento_imagenes/
 
 - Conversion RGB a escala de grises.
 - Normalizacion de histograma por minimo y maximo.
+- Calculo manual de histogramas para la comparativa visual.
 - Binarizacion por umbral.
 - Conversion de gris/binaria a RGB duplicando canales.
 - Ruido sal y pimienta.

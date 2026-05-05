@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
 from logica.binarizacion import binarizar_manual
 from logica.conversion import (
@@ -15,7 +15,7 @@ from logica.frecuencia import (
     preparar_transformada_frecuencia,
     reconstruir_desde_diametro,
 )
-from logica.histograma import normalizar_histograma_manual
+from logica.histograma import calcular_histograma_manual, normalizar_histograma_manual
 from logica.ruido import agregar_ruido_sal_pimienta_manual
 
 
@@ -35,6 +35,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_gris = None
         self.imagen_normalizada = None
         self.imagen_binarizada = None
+        self.grafico_histogramas = None
 
         self.imagen_con_ruido = None
         self.imagen_resultado_espacial = None
@@ -150,11 +151,19 @@ class VentanaPrincipal(tk.Tk):
             self.tab_preprocesamiento.columnconfigure(columna, weight=1, uniform="pre_columnas")
         for fila in range(2):
             self.tab_preprocesamiento.rowconfigure(fila, weight=1, uniform="pre_filas", minsize=430)
+        self.tab_preprocesamiento.rowconfigure(2, weight=0, minsize=360)
 
         self.lbl_pre_original = self._crear_panel_imagen(self.tab_preprocesamiento, 0, 0, "Imagen original RGB")
         self.lbl_pre_gris = self._crear_panel_imagen(self.tab_preprocesamiento, 0, 1, "Escala de grises")
-        self.lbl_pre_normalizada = self._crear_panel_imagen(self.tab_preprocesamiento, 1, 0, "Histograma normalizado")
+        self.lbl_pre_normalizada = self._crear_panel_imagen(self.tab_preprocesamiento, 1, 0, "Imagen normalizada")
         self.lbl_pre_binarizada = self._crear_panel_imagen(self.tab_preprocesamiento, 1, 1, "Imagen binarizada")
+        self.lbl_histogramas = self._crear_panel_imagen(
+            self.tab_preprocesamiento,
+            2,
+            0,
+            "Comparativa de histogramas: gris original vs normalizado",
+            columnas=2,
+        )
 
     def _crear_tab_espacial(self):
         for columna in range(3):
@@ -221,9 +230,9 @@ class VentanaPrincipal(tk.Tk):
         ttk.Button(controles, text="Procesar frecuencia", command=self.procesar_frecuencia).grid(row=0, column=3, padx=(0, 14))
         ttk.Button(controles, text="Limpiar resultados", command=self.limpiar_frecuencia).grid(row=0, column=4, sticky="e")
 
-    def _crear_panel_imagen(self, padre, fila, columna, titulo):
+    def _crear_panel_imagen(self, padre, fila, columna, titulo, columnas=1):
         panel = ttk.Frame(padre, style="Panel.TFrame", padding=14)
-        panel.grid(row=fila, column=columna, sticky="nsew", padx=6, pady=6)
+        panel.grid(row=fila, column=columna, columnspan=columnas, sticky="nsew", padx=6, pady=6)
         panel.rowconfigure(1, weight=1)
         panel.columnconfigure(0, weight=1)
 
@@ -264,6 +273,11 @@ class VentanaPrincipal(tk.Tk):
         self._mostrar_imagen_gris(self.lbl_pre_gris, self.imagen_gris, "pre_gris")
         self._mostrar_imagen_gris(self.lbl_pre_normalizada, self.imagen_normalizada, "pre_normalizada")
         self._mostrar_imagen_gris(self.lbl_pre_binarizada, self.imagen_binarizada, "pre_binarizada")
+        self.grafico_histogramas = self._crear_grafico_histogramas(
+            self.imagen_gris,
+            self.imagen_normalizada,
+        )
+        self._mostrar_imagen_pil(self.lbl_histogramas, self.grafico_histogramas, "histogramas")
 
     def _reiniciar_resultados_derivados(self):
         self._cancelar_actualizacion_ruido_pendiente()
@@ -427,6 +441,61 @@ class VentanaPrincipal(tk.Tk):
         foto = ImageTk.PhotoImage(imagen_visible)
         self.referencias_imagenes[clave] = foto
         etiqueta.configure(image=foto, text="")
+
+    def _crear_grafico_histogramas(self, imagen_gris, imagen_normalizada):
+        histograma_gris = calcular_histograma_manual(imagen_gris)
+        histograma_normalizado = calcular_histograma_manual(imagen_normalizada)
+
+        ancho = 980
+        alto = 300
+        margen_izq = 56
+        margen_der = 24
+        margen_sup = 28
+        margen_inf = 44
+        ancho_grafico = ancho - margen_izq - margen_der
+        alto_grafico = alto - margen_sup - margen_inf
+
+        imagen = Image.new("RGB", (ancho, alto), "white")
+        dibujo = ImageDraw.Draw(imagen)
+
+        maximo = 1
+        for valor in histograma_gris + histograma_normalizado:
+            if valor > maximo:
+                maximo = valor
+
+        x0 = margen_izq
+        y0 = margen_sup
+        x1 = ancho - margen_der
+        y1 = alto - margen_inf
+
+        dibujo.rectangle((x0, y0, x1, y1), outline="#d0d7de", width=1)
+        dibujo.line((x0, y1, x1, y1), fill="#495266", width=2)
+        dibujo.line((x0, y0, x0, y1), fill="#495266", width=2)
+
+        for marca in range(0, 256, 64):
+            x = x0 + int(marca * ancho_grafico / 255)
+            dibujo.line((x, y1, x, y1 + 5), fill="#495266", width=1)
+            dibujo.text((x - 10, y1 + 10), str(marca), fill="#495266")
+
+        dibujo.text((x0, 6), "Gris original", fill="#1f6feb")
+        dibujo.rectangle((x0 + 92, 10, x0 + 112, 20), fill="#1f6feb")
+        dibujo.text((x0 + 140, 6), "Normalizado", fill="#d97706")
+        dibujo.rectangle((x0 + 232, 10, x0 + 252, 20), fill="#d97706")
+
+        puntos_gris = []
+        puntos_normalizados = []
+        for intensidad in range(256):
+            x = x0 + int(intensidad * ancho_grafico / 255)
+            y_gris = y1 - int(histograma_gris[intensidad] * alto_grafico / maximo)
+            y_norm = y1 - int(histograma_normalizado[intensidad] * alto_grafico / maximo)
+            puntos_gris.append((x, y_gris))
+            puntos_normalizados.append((x, y_norm))
+
+        if len(puntos_gris) > 1:
+            dibujo.line(puntos_gris, fill="#1f6feb", width=2)
+            dibujo.line(puntos_normalizados, fill="#d97706", width=2)
+
+        return imagen
 
     def _ajustar_imagen_para_panel(self, etiqueta, imagen):
         max_ancho = etiqueta.winfo_width() - 30
