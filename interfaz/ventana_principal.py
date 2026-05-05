@@ -35,7 +35,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_resultado_frecuencia = None
 
         self.referencias_imagenes = {}
-        self.actualizacion_espectro_pendiente = None
+        self.actualizacion_frecuencia_pendiente = None
 
         self._configurar_estilos()
         self._crear_interfaz()
@@ -183,6 +183,7 @@ class VentanaPrincipal(tk.Tk):
 
         self.imagen_con_ruido = None
         self.imagen_resultado_espacial = None
+        self._cancelar_actualizacion_frecuencia_pendiente()
         self.imagen_frecuencia_base = None
         self.espectro_centrado = None
         self.espectro_visible = None
@@ -247,13 +248,7 @@ class VentanaPrincipal(tk.Tk):
                 )
                 self._mostrar_imagen_gris(self.lbl_original_frecuencia, self.imagen_frecuencia_base, "frecuencia_base")
 
-            self._mostrar_espectro_con_diametro(diametro)
-            self.imagen_resultado_frecuencia = reconstruir_desde_diametro(self.espectro_centrado, diametro)
-            self._mostrar_imagen_gris(
-                self.lbl_resultado_frecuencia,
-                self.imagen_resultado_frecuencia,
-                "resultado_frecuencia",
-            )
+            self._reconstruir_frecuencia_con_diametro(diametro)
         except Exception as error:
             messagebox.showerror("Error", f"No se pudo procesar la frecuencia:\n{error}")
         finally:
@@ -261,6 +256,7 @@ class VentanaPrincipal(tk.Tk):
 
     def _procesar_frecuencia_al_soltar(self, _evento):
         if self.espectro_centrado is not None:
+            self._cancelar_actualizacion_frecuencia_pendiente()
             self.procesar_frecuencia()
 
     def limpiar_espacial(self):
@@ -270,6 +266,7 @@ class VentanaPrincipal(tk.Tk):
         self._limpiar_etiqueta_imagen(self.lbl_resultado_espacial)
 
     def limpiar_frecuencia(self):
+        self._cancelar_actualizacion_frecuencia_pendiente()
         self.imagen_frecuencia_base = None
         self.espectro_centrado = None
         self.espectro_visible = None
@@ -288,17 +285,34 @@ class VentanaPrincipal(tk.Tk):
         diametro = int(float(valor))
         self.valor_diametro.configure(text=f"{diametro} px")
         if self.espectro_centrado is not None:
-            if self.actualizacion_espectro_pendiente is not None:
-                self.after_cancel(self.actualizacion_espectro_pendiente)
-            self.actualizacion_espectro_pendiente = self.after(
-                180,
-                lambda: self._mostrar_espectro_con_diametro(diametro),
+            self._cancelar_actualizacion_frecuencia_pendiente()
+            self.actualizacion_frecuencia_pendiente = self.after(
+                300,
+                lambda: self._reconstruir_frecuencia_con_diametro(diametro),
             )
 
+    def _reconstruir_frecuencia_con_diametro(self, diametro):
+        self.actualizacion_frecuencia_pendiente = None
+        self._mostrar_espectro_con_diametro(diametro)
+        self.imagen_resultado_frecuencia = reconstruir_desde_diametro(self.espectro_centrado, diametro)
+        self._mostrar_imagen_gris(
+            self.lbl_resultado_frecuencia,
+            self.imagen_resultado_frecuencia,
+            "resultado_frecuencia",
+        )
+
     def _mostrar_espectro_con_diametro(self, diametro):
-        self.actualizacion_espectro_pendiente = None
-        espectro_mascara = obtener_espectro_con_mascara_visible(self.espectro_centrado, diametro)
+        espectro_mascara = obtener_espectro_con_mascara_visible(
+            self.espectro_centrado,
+            diametro,
+            self.espectro_visible,
+        )
         self._mostrar_imagen_gris(self.lbl_espectro, espectro_mascara, "espectro")
+
+    def _cancelar_actualizacion_frecuencia_pendiente(self):
+        if self.actualizacion_frecuencia_pendiente is not None:
+            self.after_cancel(self.actualizacion_frecuencia_pendiente)
+            self.actualizacion_frecuencia_pendiente = None
 
     def _mostrar_imagen_gris(self, etiqueta, arreglo, clave):
         imagen = arreglo_gris_a_imagen_pil(arreglo)

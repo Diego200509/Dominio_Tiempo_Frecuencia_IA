@@ -85,7 +85,7 @@ def redimensionar_gris_bilineal_manual(imagen_gris, nuevo_ancho, nuevo_alto):
     return salida
 
 
-def preparar_gris_para_frecuencia(imagen_gris, tamano=512):
+def preparar_gris_para_frecuencia(imagen_gris, tamano=1024):
     """
     Genera una version cuadrada para el dominio de frecuencia.
     Usa interpolacion bilineal manual para evitar una vista pixelada.
