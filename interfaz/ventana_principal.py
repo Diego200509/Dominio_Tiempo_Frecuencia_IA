@@ -13,7 +13,7 @@ from logica.frecuencia import (
 from logica.ruido import agregar_ruido_sal_pimienta_manual
 
 
-TAMANO_FRECUENCIA = 512
+TAMANO_FRECUENCIA = 1024
 
 
 class VentanaPrincipal(tk.Tk):
@@ -35,6 +35,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_resultado_frecuencia = None
 
         self.referencias_imagenes = {}
+        self.actualizacion_espectro_pendiente = None
 
         self._configurar_estilos()
         self._crear_interfaz()
@@ -135,7 +136,7 @@ class VentanaPrincipal(tk.Tk):
         controles.columnconfigure(1, weight=1)
 
         ttk.Label(controles, text="Diametro del circulo central", style="Subtitulo.TLabel").grid(row=0, column=0, sticky="w")
-        self.valor_diametro = ttk.Label(controles, text="180 px", style="Valor.TLabel")
+        self.valor_diametro = ttk.Label(controles, text="360 px", style="Valor.TLabel")
         self.valor_diametro.grid(row=0, column=2, sticky="w", padx=(10, 20))
         self.slider_diametro = ttk.Scale(
             controles,
@@ -144,7 +145,7 @@ class VentanaPrincipal(tk.Tk):
             orient="horizontal",
             command=self._actualizar_valor_diametro,
         )
-        self.slider_diametro.set(180)
+        self.slider_diametro.set(360)
         self.slider_diametro.grid(row=0, column=1, sticky="ew", padx=10)
         self.slider_diametro.bind("<ButtonRelease-1>", self._procesar_frecuencia_al_soltar)
 
@@ -287,9 +288,15 @@ class VentanaPrincipal(tk.Tk):
         diametro = int(float(valor))
         self.valor_diametro.configure(text=f"{diametro} px")
         if self.espectro_centrado is not None:
-            self._mostrar_espectro_con_diametro(diametro)
+            if self.actualizacion_espectro_pendiente is not None:
+                self.after_cancel(self.actualizacion_espectro_pendiente)
+            self.actualizacion_espectro_pendiente = self.after(
+                180,
+                lambda: self._mostrar_espectro_con_diametro(diametro),
+            )
 
     def _mostrar_espectro_con_diametro(self, diametro):
+        self.actualizacion_espectro_pendiente = None
         espectro_mascara = obtener_espectro_con_mascara_visible(self.espectro_centrado, diametro)
         self._mostrar_imagen_gris(self.lbl_espectro, espectro_mascara, "espectro")
 

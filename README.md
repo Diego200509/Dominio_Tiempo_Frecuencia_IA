@@ -60,7 +60,7 @@ usan `cv2.blur`, `cv2.medianBlur`, `cv2.GaussianBlur`, `cv2.filter2D`,
 ## Dominio de frecuencia
 
 El dominio de frecuencia analiza la imagen mediante la Transformada Discreta
-de Fourier. Para mejorar la calidad visual, la imagen se prepara a 512x512
+de Fourier. Para mejorar la calidad visual, la imagen se prepara a 1024x1024
 con interpolacion bilineal manual antes de calcular Fourier.
 
 La transformada tiene dos rutas en `logica/frecuencia.py`:
