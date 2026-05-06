@@ -2,10 +2,6 @@ import numpy as np
 
 
 def normalizar_histograma_manual(imagen_gris):
-    """
-    Normaliza el contraste llevando los valores de la imagen al rango 0..255.
-    No usa cv2.equalizeHist; calcula minimo y maximo recorriendo pixeles.
-    """
     alto, ancho = imagen_gris.shape
     minimo = int(imagen_gris[0, 0])
     maximo = int(imagen_gris[0, 0])
@@ -36,10 +32,6 @@ def normalizar_histograma_manual(imagen_gris):
 
 
 def calcular_histograma_manual(imagen_gris):
-    """
-    Calcula el histograma de una imagen de un canal contando manualmente
-    cuantas veces aparece cada nivel de intensidad entre 0 y 255.
-    """
     alto, ancho = imagen_gris.shape
     histograma = [0] * 256
 

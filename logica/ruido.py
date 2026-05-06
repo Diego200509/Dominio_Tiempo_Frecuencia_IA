@@ -3,10 +3,6 @@ import numpy as np
 
 
 def agregar_ruido_sal_pimienta_manual(imagen_gris, porcentaje):
-    """
-    Agrega ruido sal y pimienta modificando pixeles a 0 o 255.
-    El porcentaje indica que fraccion aproximada de pixeles sera alterada.
-    """
     alto, ancho = imagen_gris.shape
     salida = np.copy(imagen_gris)
     probabilidad = max(0.0, min(100.0, float(porcentaje))) / 100.0

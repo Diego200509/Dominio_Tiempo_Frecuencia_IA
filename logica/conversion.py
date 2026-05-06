@@ -3,13 +3,6 @@ from PIL import Image
 
 
 def convertir_rgb_a_gris_manual(imagen_rgb):
-    """
-    Convierte una imagen RGB a escala de grises usando la formula indicada:
-    gris = 0.299R + 0.587G + 0.114B
-
-    La conversion se hace recorriendo pixel por pixel para que el proceso sea
-    claro y defendible academicamente.
-    """
     datos = np.array(imagen_rgb, dtype=np.uint8)
     alto, ancho, _ = datos.shape
     gris = np.zeros((alto, ancho), dtype=np.uint8)
@@ -26,10 +19,6 @@ def convertir_rgb_a_gris_manual(imagen_rgb):
 
 
 def redimensionar_gris_vecino_manual(imagen_gris, nuevo_ancho, nuevo_alto):
-    """
-    Redimensiona una imagen en escala de grises con vecino mas cercano.
-    Se implementa manualmente para evitar filtros automaticos de librerias.
-    """
     alto, ancho = imagen_gris.shape
     salida = np.zeros((nuevo_alto, nuevo_ancho), dtype=np.uint8)
 
@@ -47,10 +36,6 @@ def redimensionar_gris_vecino_manual(imagen_gris, nuevo_ancho, nuevo_alto):
 
 
 def redimensionar_gris_bilineal_manual(imagen_gris, nuevo_ancho, nuevo_alto):
-    """
-    Redimensiona una imagen en escala de grises con interpolacion bilineal.
-    Se calcula manualmente para mejorar la calidad frente al vecino mas cercano.
-    """
     alto, ancho = imagen_gris.shape
     salida = np.zeros((nuevo_alto, nuevo_ancho), dtype=np.uint8)
 
@@ -85,20 +70,10 @@ def redimensionar_gris_bilineal_manual(imagen_gris, nuevo_ancho, nuevo_alto):
 
 
 def preparar_gris_para_frecuencia(imagen_gris, tamano=1024):
-    """
-    Genera una version cuadrada para el dominio de frecuencia.
-    Usa interpolacion bilineal manual para evitar una vista pixelada.
-    """
     return redimensionar_gris_bilineal_manual(imagen_gris, tamano, tamano)
 
 
 def convertir_gris_a_rgb(imagen_gris):
-    """
-    Convierte una imagen de un canal a RGB duplicando el valor en R, G y B.
-    La conversion a RGB para presentacion no recupera los colores originales;
-    unicamente duplica el canal gris o binario en R, G y B para mostrar la
-    imagen en formato RGB.
-    """
     alto, ancho = imagen_gris.shape
     salida = np.zeros((alto, ancho, 3), dtype=np.uint8)
 

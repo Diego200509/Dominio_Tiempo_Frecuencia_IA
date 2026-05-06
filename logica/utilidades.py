@@ -6,10 +6,6 @@ def limitar_uint8(valor):
 
 
 def normalizar_a_uint8_manual(imagen):
-    """
-    Escala cualquier arreglo numerico al rango 0..255 recorriendo sus valores.
-    Se usa para visualizar espectros de magnitud.
-    """
     alto, ancho = imagen.shape
     minimo = float(imagen[0, 0])
     maximo = float(imagen[0, 0])
@@ -39,10 +35,6 @@ def normalizar_a_uint8_manual(imagen):
 
 
 def normalizar_reconstruccion_a_uint8_manual(imagen):
-    """
-    Normaliza una imagen reconstruida al rango 0..255.
-    Si el rango es casi constante, conserva ese valor en vez de volverla negra.
-    """
     alto, ancho = imagen.shape
     minimo = float(imagen[0, 0])
     maximo = float(imagen[0, 0])

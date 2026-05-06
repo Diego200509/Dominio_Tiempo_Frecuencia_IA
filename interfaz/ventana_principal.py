@@ -253,8 +253,6 @@ class VentanaPrincipal(tk.Tk):
             return
 
         try:
-            # Esta conversion solo asegura que la imagen cargada tenga canales RGB.
-            # El procesamiento principal a gris se realiza manualmente despues.
             self.imagen_original = Image.open(ruta).convert("RGB")
             self.imagen_gris = convertir_rgb_a_gris_manual(self.imagen_original)
             self.imagen_normalizada = normalizar_histograma_manual(self.imagen_gris)
@@ -430,8 +428,6 @@ class VentanaPrincipal(tk.Tk):
             self.actualizacion_frecuencia_pendiente = None
 
     def _mostrar_imagen_gris(self, etiqueta, arreglo, clave):
-        # La conversion a RGB para presentacion no recupera los colores originales;
-        # unicamente duplica el canal gris o binario en R, G y B para mostrarlo.
         imagen_rgb = convertir_gris_a_rgb(arreglo)
         imagen = arreglo_rgb_a_imagen_pil(imagen_rgb)
         self._mostrar_imagen_pil(etiqueta, imagen, clave)

@@ -2,10 +2,6 @@ import numpy as np
 
 
 def agregar_padding_replicado_manual(imagen_gris, radio=1):
-    """
-    Agrega padding por replicacion de bordes.
-    Para una ventana 3x3 se usa radio=1.
-    """
     alto, ancho = imagen_gris.shape
     salida = np.zeros((alto + 2 * radio, ancho + 2 * radio), dtype=np.uint8)
 
