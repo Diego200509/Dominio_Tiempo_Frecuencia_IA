@@ -5,6 +5,10 @@ from logica.conversion import preparar_gris_para_frecuencia
 from logica.utilidades import normalizar_a_uint8_manual, normalizar_reconstruccion_a_uint8_manual
 
 
+FILTRO_PASA_BAJO = "Pasa-bajo"
+FILTRO_PASA_ALTO = "Pasa-alto"
+
+
 def dft_1d_manual(vector, inversa=False):
     n = len(vector)
     salida = np.zeros(n, dtype=np.complex128)
@@ -99,44 +103,47 @@ def calcular_espectro_magnitud_manual(espectro_centrado):
     return normalizar_a_uint8_manual(magnitud)
 
 
-def dibujar_circulo_en_espectro_manual(espectro_visible, diametro):
-    alto, ancho = espectro_visible.shape
+def crear_mascara_circular_manual(alto, ancho, radio, tipo_filtro=FILTRO_PASA_BAJO):
     centro_y = alto // 2
     centro_x = ancho // 2
-    radio = max(1, float(diametro) / 2.0)
-    salida = np.zeros((alto, ancho), dtype=np.uint8)
-
-    for y in range(alto):
-        for x in range(ancho):
-            distancia = math.sqrt((x - centro_x) ** 2 + (y - centro_y) ** 2)
-            valor = int(espectro_visible[y, x])
-
-            if distancia <= radio:
-                salida[y, x] = valor
-            else:
-                salida[y, x] = int(valor * 0.25)
-
-            if abs(distancia - radio) <= 1.2:
-                salida[y, x] = 255
-
-    return salida
-
-
-def crear_mascara_circular_manual(alto, ancho, diametro):
-    centro_y = alto // 2
-    centro_x = ancho // 2
-    radio = max(1, float(diametro) / 2.0)
+    radio = max(1.0, float(radio))
     mascara = np.zeros((alto, ancho), dtype=np.float64)
 
     for y in range(alto):
         for x in range(ancho):
             distancia = math.sqrt((x - centro_x) ** 2 + (y - centro_y) ** 2)
-            if distancia <= radio:
-                mascara[y, x] = 1.0
+            if tipo_filtro == FILTRO_PASA_ALTO:
+                mascara[y, x] = 0.0 if distancia <= radio else 1.0
             else:
-                mascara[y, x] = 0.0
+                mascara[y, x] = 1.0 if distancia <= radio else 0.0
 
     return mascara
+
+
+def convertir_mascara_a_uint8_manual(mascara):
+    alto, ancho = mascara.shape
+    salida = np.zeros((alto, ancho), dtype=np.uint8)
+
+    for y in range(alto):
+        for x in range(ancho):
+            salida[y, x] = 255 if float(mascara[y, x]) >= 0.5 else 0
+
+    return salida
+
+
+def dibujar_mascara_en_espectro_manual(espectro_visible, mascara):
+    alto, ancho = espectro_visible.shape
+    salida = np.zeros((alto, ancho), dtype=np.uint8)
+
+    for y in range(alto):
+        for x in range(ancho):
+            valor = int(espectro_visible[y, x])
+            if float(mascara[y, x]) >= 0.5:
+                salida[y, x] = valor
+            else:
+                salida[y, x] = int(valor * 0.20)
+
+    return salida
 
 
 def aplicar_mascara_manual(espectro_centrado, mascara):
@@ -159,18 +166,13 @@ def preparar_transformada_frecuencia(imagen_gris, tamano=1024, usar_numpy_fft=Tr
         espectro = dft_2d_manual(imagen_pequena)
 
     espectro_centrado = centrar_espectro_manual(espectro)
-
     espectro_visible = calcular_espectro_magnitud_manual(espectro_centrado)
     return imagen_pequena, espectro_centrado, espectro_visible
 
 
-def reconstruir_desde_diametro(espectro_centrado, diametro, usar_numpy_fft=True):
+def reconstruir_desde_mascara(espectro_centrado, mascara, usar_numpy_fft=True):
     alto, ancho = espectro_centrado.shape
-
-    mascara = crear_mascara_circular_manual(alto, ancho, diametro)
-
     espectro_filtrado = aplicar_mascara_manual(espectro_centrado, mascara)
-
     espectro_sin_centrar = descentrar_espectro_manual(espectro_filtrado)
 
     if usar_numpy_fft:
@@ -179,7 +181,6 @@ def reconstruir_desde_diametro(espectro_centrado, diametro, usar_numpy_fft=True)
         reconstruida_compleja = idft_2d_manual(espectro_sin_centrar)
 
     reconstruida_real = np.zeros((alto, ancho), dtype=np.float64)
-
     for y in range(alto):
         for x in range(ancho):
             reconstruida_real[y, x] = reconstruida_compleja[y, x].real
@@ -187,7 +188,36 @@ def reconstruir_desde_diametro(espectro_centrado, diametro, usar_numpy_fft=True)
     return normalizar_reconstruccion_a_uint8_manual(reconstruida_real)
 
 
+def procesar_filtro_frecuencia(imagen_gris, radio, tipo_filtro=FILTRO_PASA_BAJO, tamano=1024):
+    imagen_base, espectro_centrado, espectro_visible = preparar_transformada_frecuencia(
+        imagen_gris,
+        tamano=tamano,
+        usar_numpy_fft=True,
+    )
+    alto, ancho = espectro_centrado.shape
+    mascara = crear_mascara_circular_manual(alto, ancho, radio, tipo_filtro)
+    mascara_visible = convertir_mascara_a_uint8_manual(mascara)
+    espectro_con_mascara = dibujar_mascara_en_espectro_manual(espectro_visible, mascara)
+    reconstruida = reconstruir_desde_mascara(espectro_centrado, mascara, usar_numpy_fft=True)
+
+    return {
+        "base": imagen_base,
+        "espectro": espectro_visible,
+        "mascara": mascara_visible,
+        "espectro_mascara": espectro_con_mascara,
+        "reconstruida": reconstruida,
+    }
+
+
+def reconstruir_desde_diametro(espectro_centrado, diametro, usar_numpy_fft=True):
+    alto, ancho = espectro_centrado.shape
+    mascara = crear_mascara_circular_manual(alto, ancho, float(diametro) / 2.0, FILTRO_PASA_BAJO)
+    return reconstruir_desde_mascara(espectro_centrado, mascara, usar_numpy_fft=usar_numpy_fft)
+
+
 def obtener_espectro_con_mascara_visible(espectro_centrado, diametro, espectro_visible=None):
+    alto, ancho = espectro_centrado.shape
     if espectro_visible is None:
         espectro_visible = calcular_espectro_magnitud_manual(espectro_centrado)
-    return dibujar_circulo_en_espectro_manual(espectro_visible, diametro)
+    mascara = crear_mascara_circular_manual(alto, ancho, float(diametro) / 2.0, FILTRO_PASA_BAJO)
+    return dibujar_mascara_en_espectro_manual(espectro_visible, mascara)

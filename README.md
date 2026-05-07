@@ -1,47 +1,32 @@
 # Procesamiento Digital de Imagenes
 
-Proyecto academico en Python para procesamiento digital de imagenes en:
+Proyecto academico en Python para demostrar procesamiento digital de imagenes
+en preprocesamiento, dominio espacial/tiempo y dominio de frecuencia.
 
-- Preprocesamiento.
-- Dominio espacial.
-- Dominio de frecuencia.
+La interfaz esta hecha con Tkinter. Pillow se usa para cargar y mostrar imagenes.
+NumPy se usa como apoyo matematico y para manejar matrices, pero la logica
+principal de los filtros, binarizacion, ruido, bordes y deteccion se implementa
+manualmente.
 
-La interfaz esta hecha con Tkinter y el codigo esta organizado separando la
-interfaz de la logica de procesamiento.
+## Flujo Corregido
 
-## Objetivo
-
-El programa permite cargar una imagen RGB desde el equipo y demostrar un flujo
-completo de tratamiento de imagenes:
+El flujo fue corregido para que los filtros trabajen sobre la imagen en escala
+de grises normalizada, conservando la informacion de intensidad. La
+binarizacion ya no se usa como entrada de los filtros; ahora se aplica al final.
 
 ```text
 RGB original
--> escala de grises
--> normalizacion de histograma
--> binarizacion
--> ruido sal y pimienta
--> filtros espaciales o procesamiento en frecuencia
+-> conversion manual a escala de grises
+-> normalizacion manual de intensidades 0..255
+-> tratamiento de ruido o filtro de frecuencia
+-> acentuado de bordes
+-> gradiente con Sobel
+-> binarizacion final
+-> deteccion del objeto
+-> bounding box final
 ```
-
-Las imagenes de un canal se muestran en formato RGB duplicando el valor en los
-tres canales:
-
-```text
-gris -> RGB = (gris, gris, gris)
-binaria -> RGB = (valor, valor, valor)
-```
-
-Esto no recupera colores originales; solo permite presentar resultados en un
-formato RGB visible en la interfaz.
-
-El sistema procesa la imagen en RGB, escala de grises y binarizacion. Para la
-presentacion final, las imagenes de un solo canal se convierten nuevamente a RGB
-duplicando el valor del pixel en los tres canales, permitiendo visualizarlas
-correctamente en la interfaz.
 
 ## Instalacion
-
-Se recomienda crear un entorno virtual:
 
 ```bash
 python -m venv .venv
@@ -55,118 +40,191 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Luego presiona **Cargar imagen** y selecciona cualquier archivo `.png`, `.jpg`,
+Luego presiona **Cargar imagen** y selecciona un archivo `.png`, `.jpg`,
 `.jpeg`, `.bmp`, `.tif` o `.tiff`.
 
-## Preprocesamiento
+## Preprocesamiento Inicial
 
-La primera pestaña muestra:
+La primera pestana muestra:
 
 - Imagen original RGB.
 - Imagen en escala de grises.
-- Imagen con histograma normalizado.
-- Imagen binarizada.
-- Grafico comparativo del histograma original en grises y el histograma normalizado.
+- Imagen normalizada.
+- Comparativa de histogramas.
 
-La conversion RGB a escala de grises se realiza manualmente pixel por pixel:
+La conversion RGB a gris se calcula pixel por pixel:
 
 ```text
 gris = 0.299R + 0.587G + 0.114B
 ```
 
-La normalizacion de histograma se implementa manualmente calculando minimo y
-maximo de la imagen y llevando los valores al rango `0..255`.
-Tambien se calcula manualmente una comparativa de histogramas contando cuantos
-pixeles pertenecen a cada nivel de intensidad entre `0` y `255`.
-
-La binarizacion se implementa manualmente con un umbral fijo de `128`:
+La normalizacion se implementa manualmente calculando minimo y maximo:
 
 ```text
-si valor >= 128 -> 255
-si valor < 128  -> 0
+valor_normalizado = (valor - minimo) * 255 / (maximo - minimo)
 ```
 
-## Dominio espacial
+La imagen normalizada es la base para el dominio espacial y para el dominio de
+frecuencia.
 
-El dominio espacial usa como base la imagen ya procesada en background:
+## Dominio Espacial / Tiempo
+
+El flujo espacial es:
 
 ```text
-RGB -> gris -> normalizacion -> binarizacion
+imagen gris normalizada
+-> ruido sal y pimienta
+-> filtro espacial 3x3
+-> pasa-alto espacial
+-> Sobel
+-> binarizacion final
+-> bounding box
 ```
 
-Sobre esa imagen binarizada se agrega ruido sal y pimienta manualmente:
+El ruido sal y pimienta se agrega manualmente sobre la imagen gris normalizada.
+El control de ruido usa un valor entre `0` y `0.40` para evitar degradar
+excesivamente la imagen:
 
-- Pimienta: pixeles cambiados a `0`.
-- Sal: pixeles cambiados a `255`.
+- Pimienta: algunos pixeles cambian a `0`.
+- Sal: algunos pixeles cambian a `255`.
 
-No se usa `imnoise` ni equivalentes automaticos.
+Los filtros espaciales se aplican recorriendo ventanas `3x3` con padding por
+replicacion de bordes:
 
-Luego se aplica un filtro manual sobre la imagen con ruido:
+- Media: suma los 9 valores y divide para 9.
+- Mediana: ordena los 9 valores y toma el central.
+- Moda: cuenta frecuencias y toma el valor mas repetido.
 
-- Filtro de media: recorre una ventana `3x3`, suma los 9 valores y divide para 9.
-- Filtro de mediana: ordena los 9 valores de la ventana y toma el central.
-- Filtro de moda: cuenta frecuencias de los 9 valores y toma el mas repetido.
-
-El padding se realiza manualmente por replicacion de bordes.
-
-## Dominio de frecuencia
-
-El dominio de frecuencia tambien usa como base la imagen procesada:
+Despues del suavizado se aplica un pasa-alto espacial manual con la mascara:
 
 ```text
-RGB -> gris -> normalizacion -> binarizacion
+-1 -1 -1
+-1  8 -1
+-1 -1 -1
 ```
 
-El flujo aplicado es:
+La salida del pasa-alto se normaliza manualmente a `0..255`.
+
+## Sobel Manual
+
+Sobel se aplica sobre una imagen procesada en escala de grises, no sobre una
+imagen binaria.
+
+Kernel X:
 
 ```text
-imagen base binarizada
+-1  0  1
+-2  0  2
+-1  0  1
+```
+
+Kernel Y:
+
+```text
+-1 -2 -1
+ 0  0  0
+ 1  2  1
+```
+
+Para cada pixel se calcula:
+
+```text
+G = sqrt(Gx^2 + Gy^2)
+```
+
+La interfaz muestra tres resultados para que el proceso sea mas claro:
+
+- `Sobel X`: valor absoluto de la respuesta del kernel horizontal.
+- `Sobel Y`: valor absoluto de la respuesta del kernel vertical.
+- `Magnitud Sobel`: combinacion `sqrt(Gx^2 + Gy^2)`.
+
+Para visualizar `Sobel X` y `Sobel Y` se usa valor absoluto porque las
+respuestas originales pueden ser positivas o negativas. Cada resultado se
+normaliza manualmente a `0..255`.
+
+## Dominio de Frecuencia
+
+El dominio de frecuencia tambien parte de la imagen gris normalizada:
+
+```text
+imagen gris normalizada
 -> Fourier
 -> centrar espectro
--> mascara circular central
--> espectro centrado * mascara
--> descentrar espectro
+-> mascara circular pasa-bajo o pasa-alto
 -> transformada inversa
--> parte real
--> normalizacion 0..255
--> imagen reconstruida
+-> reconstruccion en escala de grises
+-> Sobel
+-> binarizacion final
+-> bounding box
 ```
 
-La interfaz principal usa `numpy.fft.fft2` y `numpy.fft.ifft2` para calcular
-Fourier con buena calidad visual y tiempos razonables. No se usa OpenCV ni
-`cv2.dft`.
+Se permite y se usa `numpy.fft` para la transformada:
 
-Tambien se conserva una DFT/IDFT manual separable por filas y columnas en
-`logica/frecuencia.py` como referencia didactica para explicar el procedimiento.
+- `np.fft.fft2`
+- `np.fft.ifft2`
 
-La mascara circular central se calcula manualmente:
+El centrado/descentrado y las mascaras se calculan manualmente en la logica del
+proyecto.
+
+La mascara circular se calcula con:
 
 ```text
 distancia = sqrt((x - centro_x)^2 + (y - centro_y)^2)
+```
+
+Pasa-bajo:
+
+```text
 si distancia <= radio -> 1
 si distancia > radio  -> 0
 ```
 
-El radio es:
+Pasa-alto:
 
 ```text
-radio = diametro / 2
+si distancia <= radio -> 0
+si distancia > radio  -> 1
 ```
 
-El diametro se controla con un slider. Si el diametro es pequeno, se conservan
-principalmente bajas frecuencias y la imagen se ve mas suavizada. Si el
-diametro aumenta, se conservan mas componentes y se recuperan detalles y bordes.
+El espectro se visualiza con magnitud logaritmica:
 
-El espectro se visualiza con magnitud logaritmica `log(1 + magnitud)` y
-normalizacion manual a `0..255`. La interfaz muestra un circulo blanco sobre el
-espectro para indicar que parte se conserva.
+```text
+espectro = log(1 + abs(F))
+```
 
-## Restricciones cumplidas
+Luego se normaliza manualmente al rango `0..255`. La interfaz tambien muestra
+la mascara circular aplicada.
 
-No se usan funciones automaticas para los calculos principales:
+## Binarizacion Final
+
+La binarizacion se ejecuta al final del flujo, despues del filtrado y de Sobel.
+El umbral se controla con un slider:
+
+```text
+si valor >= umbral -> 255
+si valor < umbral  -> 0
+```
+
+## Bounding Box
+
+El bounding box se calcula manualmente agrupando los componentes blancos
+significativos de la imagen binaria final. Esto permite rodear objetos formados
+por varias partes separadas, como letras, y descartar puntos pequenos de ruido:
+
+- `x_min`
+- `x_max`
+- `y_min`
+- `y_max`
+
+Luego se dibuja una caja roja sobre la imagen procesada para visualizar el
+objeto detectado.
+
+## Restricciones
+
+No se usan funciones automaticas que resuelvan directamente las etapas
+principales:
 
 - No `cv2.cvtColor`.
-- No `cv2.equalizeHist`.
 - No `cv2.threshold`.
 - No `cv2.blur`.
 - No `cv2.medianBlur`.
@@ -176,56 +234,47 @@ No se usan funciones automaticas para los calculos principales:
 - No `skimage.filters`.
 - No `imnoise`.
 
-Las librerias se usan para:
-
-- Cargar imagenes con Pillow.
-- Mostrar imagenes con Pillow/Tkinter.
-- Crear la interfaz con Tkinter.
-- Manejo basico de arreglos con NumPy.
-- Fourier optimizado con `numpy.fft` en la ruta principal de frecuencia.
-
 ## Estructura
 
 ```text
-proyecto_procesamiento_imagenes/
-|
-|-- main.py
-|-- requirements.txt
-|-- README.md
-|
-|-- interfaz/
-|   |-- __init__.py
-|   `-- ventana_principal.py
-|
-|-- logica/
-|   |-- __init__.py
-|   |-- conversion.py
-|   |-- histograma.py
-|   |-- binarizacion.py
-|   |-- ruido.py
-|   |-- filtros_espaciales.py
-|   |-- frecuencia.py
-|   `-- utilidades.py
-|
-`-- recursos/
-    `-- imagenes/
+main.py
+requirements.txt
+README.md
+
+interfaz/
+    __init__.py
+    ventana_principal.py
+
+logica/
+    __init__.py
+    binarizacion.py
+    bordes.py
+    bounding_box.py
+    conversion.py
+    filtros_espaciales.py
+    frecuencia.py
+    histograma.py
+    ruido.py
+    utilidades.py
+
+recursos/
+    imagenes/
 ```
 
-## Funciones implementadas manualmente
+## Funciones Manuales Implementadas
 
 - Conversion RGB a escala de grises.
-- Normalizacion de histograma por minimo y maximo.
-- Calculo manual de histogramas para la comparativa visual.
-- Binarizacion por umbral.
-- Conversion de gris/binaria a RGB duplicando canales.
+- Normalizacion de intensidades por minimo y maximo.
+- Calculo de histogramas.
 - Ruido sal y pimienta.
 - Padding por replicacion.
-- Filtro de media `3x3`.
-- Filtro de mediana `3x3`.
-- Filtro de moda `3x3`.
-- Redimensionamiento por vecino mas cercano e interpolacion bilineal manual.
-- DFT 1D, DFT 2D e IDFT 2D manuales como referencia didactica.
-- Centrado y descentrado manual del espectro.
-- Mascara circular central.
-- Aplicacion manual de la mascara en frecuencia.
+- Filtros de media, mediana y moda con ventana `3x3`.
+- Pasa-alto espacial con mascara `3x3`.
+- Sobel X, Sobel Y y magnitud con kernels manuales.
+- Binarizacion por umbral.
+- Mascara circular pasa-bajo en frecuencia.
+- Mascara circular pasa-alto en frecuencia.
+- Visualizacion del espectro con la mascara aplicada.
+- Aplicacion manual de mascara al espectro.
 - Normalizacion manual de espectro y reconstruccion.
+- Calculo manual del bounding box.
