@@ -48,9 +48,10 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_sobel_magnitud_espacial = None
         self.imagen_binaria_espacial = None
         self.imagen_bbox_espacial = None
-        self.caja_espacial = None
+        self.objetos_espacial = []
 
         self.imagen_base_frecuencia = None
+        self.imagen_ruido_frecuencia = None
         self.espectro_visible = None
         self.espectro_filtrado_visible = None
         self.imagen_reconstruida_frecuencia = None
@@ -59,7 +60,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_sobel_magnitud_frecuencia = None
         self.imagen_binaria_frecuencia = None
         self.imagen_bbox_frecuencia = None
-        self.caja_frecuencia = None
+        self.objetos_frecuencia = []
 
         self.referencias_imagenes = {}
         self.imagenes_fuente = {}
@@ -187,13 +188,14 @@ class VentanaPrincipal(tk.Tk):
 
         self.lbl_base_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 0, "Base gris normalizada")
         self.lbl_ruido = self._crear_panel_imagen(self.tab_espacial, 0, 1, "Ruido sal y pimienta")
-        self.lbl_filtrada_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 2, "Filtro espacial 3x3")
+        self.lbl_filtrada_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 2, "Filtro espacial")
         self.lbl_pasa_alto_espacial = self._crear_panel_imagen(self.tab_espacial, 0, 3, "Pasa-alto espacial")
         self.lbl_sobel_x_espacial = self._crear_panel_imagen(self.tab_espacial, 1, 0, "Sobel X")
         self.lbl_sobel_y_espacial = self._crear_panel_imagen(self.tab_espacial, 1, 1, "Sobel Y")
         self.lbl_sobel_magnitud_espacial = self._crear_panel_imagen(self.tab_espacial, 1, 2, "Magnitud Sobel")
         self.lbl_binaria_espacial = self._crear_panel_imagen(self.tab_espacial, 1, 3, "Binarizacion final")
-        self.lbl_bbox_espacial = self._crear_panel_imagen(self.tab_espacial, 2, 0, "Bounding box final", columnas=4)
+        self.lbl_bbox_espacial = self._crear_panel_imagen(self.tab_espacial, 2, 0, "Bounding box final", columnas=3)
+        self.lbl_metricas_espacial = self._crear_panel_texto(self.tab_espacial, 2, 3, "Area y perimetro")
 
         controles = ttk.Frame(self.tab_espacial, style="Panel.TFrame", padding=16)
         controles.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(14, 0))
@@ -216,6 +218,16 @@ class VentanaPrincipal(tk.Tk):
         self.combo_filtro.grid(row=1, column=1, sticky="ew", padx=10, pady=(14, 0))
         self.combo_filtro.set("Filtro de mediana")
 
+        ttk.Label(controles, text="Ventana", style="Subtitulo.TLabel").grid(row=1, column=2, sticky="e", pady=(14, 0))
+        self.combo_tamano_ventana = ttk.Combobox(
+            controles,
+            values=("3x3", "5x5", "7x7", "11x11"),
+            state="readonly",
+            width=8,
+        )
+        self.combo_tamano_ventana.grid(row=1, column=3, sticky="w", padx=(10, 14), pady=(14, 0))
+        self.combo_tamano_ventana.set("3x3")
+
         ttk.Label(controles, text="Umbral binarizacion", style="Subtitulo.TLabel").grid(row=2, column=0, sticky="w", pady=(14, 0))
         self.valor_umbral_espacial = ttk.Label(controles, text=str(UMBRAL_BINARIZACION), style="Valor.TLabel")
         self.valor_umbral_espacial.grid(row=2, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
@@ -230,7 +242,7 @@ class VentanaPrincipal(tk.Tk):
         self.slider_umbral_espacial.grid(row=2, column=1, sticky="ew", padx=10, pady=(14, 0))
 
         ttk.Button(controles, text="Procesar dominio espacial", command=self.procesar_dominio_espacial).grid(row=0, column=3, padx=(0, 14))
-        ttk.Button(controles, text="Limpiar espacial", command=self.limpiar_espacial).grid(row=1, column=3, padx=(0, 14), pady=(14, 0))
+        ttk.Button(controles, text="Limpiar espacial", command=self.limpiar_espacial).grid(row=2, column=3, padx=(0, 14), pady=(14, 0))
 
     def _crear_tab_frecuencia(self):
         for columna in range(4):
@@ -239,39 +251,54 @@ class VentanaPrincipal(tk.Tk):
             self.tab_frecuencia.rowconfigure(fila, weight=1, minsize=390)
 
         self.lbl_base_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, 0, "Base gris normalizada")
-        self.lbl_espectro = self._crear_panel_imagen(self.tab_frecuencia, 0, 1, "Espectro Fourier")
-        self.lbl_espectro_filtrado = self._crear_panel_imagen(self.tab_frecuencia, 0, 2, "Espectro con mascara")
-        self.lbl_reconstruida_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, 3, "Imagen reconstruida")
-        self.lbl_sobel_x_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 0, "Sobel X")
-        self.lbl_sobel_y_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 1, "Sobel Y")
-        self.lbl_sobel_magnitud_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 2, "Magnitud Sobel")
-        self.lbl_binaria_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 3, "Binarizacion final")
-        self.lbl_bbox_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 2, 0, "Bounding box final", columnas=4)
+        self.lbl_ruido_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 0, 1, "Ruido sal y pimienta")
+        self.lbl_espectro = self._crear_panel_imagen(self.tab_frecuencia, 0, 2, "Espectro Fourier")
+        self.lbl_espectro_filtrado = self._crear_panel_imagen(self.tab_frecuencia, 0, 3, "Espectro con mascara")
+        self.lbl_reconstruida_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 0, "Imagen reconstruida")
+        self.lbl_sobel_x_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 1, "Sobel X")
+        self.lbl_sobel_y_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 2, "Sobel Y")
+        self.lbl_sobel_magnitud_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 1, 3, "Magnitud Sobel")
+        self.lbl_binaria_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 2, 0, "Binarizacion final")
+        self.lbl_bbox_frecuencia = self._crear_panel_imagen(self.tab_frecuencia, 2, 1, "Bounding box final", columnas=2)
+        self.lbl_metricas_frecuencia = self._crear_panel_texto(self.tab_frecuencia, 2, 3, "Area y perimetro")
 
         controles = ttk.Frame(self.tab_frecuencia, style="Panel.TFrame", padding=16)
         controles.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(14, 0))
         controles.columnconfigure(1, weight=1)
         controles.columnconfigure(4, weight=1)
 
-        ttk.Label(controles, text="Filtro frecuencia", style="Subtitulo.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(controles, text="Ruido sal y pimienta", style="Subtitulo.TLabel").grid(row=0, column=0, sticky="w")
+        self.valor_ruido_frecuencia = ttk.Label(controles, text="0.10", style="Valor.TLabel")
+        self.valor_ruido_frecuencia.grid(row=0, column=2, sticky="w", padx=(10, 20))
+        self.slider_ruido_frecuencia = ttk.Scale(
+            controles,
+            from_=0,
+            to=0.40,
+            orient="horizontal",
+            command=self._actualizar_valor_ruido_frecuencia,
+        )
+        self.slider_ruido_frecuencia.set(0.10)
+        self.slider_ruido_frecuencia.grid(row=0, column=1, sticky="ew", padx=10)
+
+        ttk.Label(controles, text="Filtro frecuencia", style="Subtitulo.TLabel").grid(row=1, column=0, sticky="w", pady=(14, 0))
         self.combo_frecuencia = ttk.Combobox(
             controles,
             values=(FILTRO_PASA_BAJO, FILTRO_PASA_ALTO),
             state="readonly",
         )
-        self.combo_frecuencia.grid(row=0, column=1, sticky="ew", padx=10)
+        self.combo_frecuencia.grid(row=1, column=1, sticky="ew", padx=10, pady=(14, 0))
         self.combo_frecuencia.set(FILTRO_PASA_BAJO)
 
-        ttk.Label(controles, text="Radio mascara", style="Subtitulo.TLabel").grid(row=1, column=0, sticky="w", pady=(14, 0))
+        ttk.Label(controles, text="Radio mascara", style="Subtitulo.TLabel").grid(row=2, column=0, sticky="w", pady=(14, 0))
         self.valor_radio = ttk.Label(controles, text="120 px", style="Valor.TLabel")
-        self.valor_radio.grid(row=1, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
+        self.valor_radio.grid(row=2, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
         self.slider_radio = ttk.Scale(controles, from_=1, to=TAMANO_FRECUENCIA // 2, orient="horizontal", command=self._actualizar_radio)
         self.slider_radio.set(120)
-        self.slider_radio.grid(row=1, column=1, sticky="ew", padx=10, pady=(14, 0))
+        self.slider_radio.grid(row=2, column=1, sticky="ew", padx=10, pady=(14, 0))
 
-        ttk.Label(controles, text="Umbral binarizacion", style="Subtitulo.TLabel").grid(row=2, column=0, sticky="w", pady=(14, 0))
+        ttk.Label(controles, text="Umbral binarizacion", style="Subtitulo.TLabel").grid(row=3, column=0, sticky="w", pady=(14, 0))
         self.valor_umbral_frecuencia = ttk.Label(controles, text=str(UMBRAL_BINARIZACION), style="Valor.TLabel")
-        self.valor_umbral_frecuencia.grid(row=2, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
+        self.valor_umbral_frecuencia.grid(row=3, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
         self.slider_umbral_frecuencia = ttk.Scale(
             controles,
             from_=0,
@@ -280,7 +307,7 @@ class VentanaPrincipal(tk.Tk):
             command=self._actualizar_umbral_frecuencia,
         )
         self.slider_umbral_frecuencia.set(UMBRAL_BINARIZACION)
-        self.slider_umbral_frecuencia.grid(row=2, column=1, sticky="ew", padx=10, pady=(14, 0))
+        self.slider_umbral_frecuencia.grid(row=3, column=1, sticky="ew", padx=10, pady=(14, 0))
 
         ttk.Button(controles, text="Procesar frecuencia", command=self.procesar_dominio_frecuencia).grid(row=0, column=3, padx=(0, 14))
         ttk.Button(controles, text="Limpiar frecuencia", command=self.limpiar_frecuencia).grid(row=1, column=3, padx=(0, 14), pady=(14, 0))
@@ -293,6 +320,17 @@ class VentanaPrincipal(tk.Tk):
 
         ttk.Label(panel, text=titulo, style="Subtitulo.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 10))
         etiqueta = ttk.Label(panel, text="Sin imagen", style="Texto.TLabel", anchor="center")
+        etiqueta.grid(row=1, column=0, sticky="nsew")
+        return etiqueta
+
+    def _crear_panel_texto(self, padre, fila, columna, titulo, columnas=1):
+        panel = ttk.Frame(padre, style="Panel.TFrame", padding=14)
+        panel.grid(row=fila, column=columna, columnspan=columnas, sticky="nsew", padx=6, pady=6)
+        panel.rowconfigure(1, weight=1)
+        panel.columnconfigure(0, weight=1)
+
+        ttk.Label(panel, text=titulo, style="Subtitulo.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 10))
+        etiqueta = ttk.Label(panel, text="Sin objetos", style="Texto.TLabel", anchor="nw", justify="left")
         etiqueta.grid(row=1, column=0, sticky="nsew")
         return etiqueta
 
@@ -346,8 +384,9 @@ class VentanaPrincipal(tk.Tk):
 
             nivel_ruido = float(self.slider_ruido.get())
             umbral = int(round(self.slider_umbral_espacial.get()))
+            tamano_ventana = int(self.combo_tamano_ventana.get().split("x")[0])
             self.imagen_con_ruido = agregar_ruido_sal_pimienta_manual(self.imagen_normalizada, nivel_ruido)
-            self.imagen_filtrada_espacial = aplicar_filtro_manual(self.imagen_con_ruido, filtro)
+            self.imagen_filtrada_espacial = aplicar_filtro_manual(self.imagen_con_ruido, filtro, tamano_ventana)
             self.imagen_pasa_alto_espacial = pasa_alto_espacial_manual(self.imagen_filtrada_espacial)
             (
                 self.imagen_sobel_x_espacial,
@@ -355,7 +394,7 @@ class VentanaPrincipal(tk.Tk):
                 self.imagen_sobel_magnitud_espacial,
             ) = sobel_componentes_manual(self.imagen_pasa_alto_espacial)
             self.imagen_binaria_espacial = binarizar_manual(self.imagen_sobel_magnitud_espacial, umbral)
-            self.caja_espacial, self.imagen_bbox_espacial = detectar_y_dibujar_bounding_box_manual(
+            self.objetos_espacial, self.imagen_bbox_espacial = detectar_y_dibujar_bounding_box_manual(
                 self.imagen_binaria_espacial,
                 self.imagen_normalizada,
                 grosor=4,
@@ -373,6 +412,7 @@ class VentanaPrincipal(tk.Tk):
             )
             self._mostrar_imagen_gris(self.lbl_binaria_espacial, self.imagen_binaria_espacial, "binaria_espacial")
             self._mostrar_imagen_rgb(self.lbl_bbox_espacial, self.imagen_bbox_espacial, "bbox_espacial")
+            self._mostrar_metricas(self.lbl_metricas_espacial, self.objetos_espacial)
         except Exception as error:
             messagebox.showerror("Error", f"No se pudo procesar el dominio espacial:\n{error}")
         finally:
@@ -394,14 +434,16 @@ class VentanaPrincipal(tk.Tk):
 
             radio = int(round(self.slider_radio.get()))
             umbral = int(round(self.slider_umbral_frecuencia.get()))
+            nivel_ruido = float(self.slider_ruido_frecuencia.get())
+            self.imagen_ruido_frecuencia = agregar_ruido_sal_pimienta_manual(self.imagen_normalizada, nivel_ruido)
             resultado = procesar_filtro_frecuencia(
-                self.imagen_normalizada,
+                self.imagen_ruido_frecuencia,
                 radio,
                 tipo_filtro=tipo_filtro,
                 tamano=TAMANO_FRECUENCIA,
             )
 
-            self.imagen_base_frecuencia = resultado["base"]
+            self.imagen_base_frecuencia = self.imagen_normalizada
             self.espectro_visible = resultado["espectro"]
             self.espectro_filtrado_visible = resultado["espectro_mascara"]
             self.imagen_reconstruida_frecuencia = resultado["reconstruida"]
@@ -411,13 +453,14 @@ class VentanaPrincipal(tk.Tk):
                 self.imagen_sobel_magnitud_frecuencia,
             ) = sobel_componentes_manual(self.imagen_reconstruida_frecuencia)
             self.imagen_binaria_frecuencia = binarizar_manual(self.imagen_sobel_magnitud_frecuencia, umbral)
-            self.caja_frecuencia, self.imagen_bbox_frecuencia = detectar_y_dibujar_bounding_box_manual(
+            self.objetos_frecuencia, self.imagen_bbox_frecuencia = detectar_y_dibujar_bounding_box_manual(
                 self.imagen_binaria_frecuencia,
                 self.imagen_reconstruida_frecuencia,
                 grosor=4,
             )
 
             self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_base_frecuencia, "base_frecuencia")
+            self._mostrar_imagen_gris(self.lbl_ruido_frecuencia, self.imagen_ruido_frecuencia, "ruido_frecuencia")
             self._mostrar_imagen_gris(self.lbl_espectro, self.espectro_visible, "espectro")
             self._mostrar_imagen_gris(self.lbl_espectro_filtrado, self.espectro_filtrado_visible, "espectro_filtrado")
             self._mostrar_imagen_gris(
@@ -434,6 +477,7 @@ class VentanaPrincipal(tk.Tk):
             )
             self._mostrar_imagen_gris(self.lbl_binaria_frecuencia, self.imagen_binaria_frecuencia, "binaria_frecuencia")
             self._mostrar_imagen_rgb(self.lbl_bbox_frecuencia, self.imagen_bbox_frecuencia, "bbox_frecuencia")
+            self._mostrar_metricas(self.lbl_metricas_frecuencia, self.objetos_frecuencia)
         except Exception as error:
             messagebox.showerror("Error", f"No se pudo procesar la frecuencia:\n{error}")
         finally:
@@ -452,7 +496,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_sobel_magnitud_espacial = None
         self.imagen_binaria_espacial = None
         self.imagen_bbox_espacial = None
-        self.caja_espacial = None
+        self.objetos_espacial = []
         for etiqueta in (
             self.lbl_ruido,
             self.lbl_filtrada_espacial,
@@ -464,11 +508,13 @@ class VentanaPrincipal(tk.Tk):
             self.lbl_bbox_espacial,
         ):
             self._limpiar_etiqueta_imagen(etiqueta)
+        self._limpiar_etiqueta_texto(self.lbl_metricas_espacial)
         if self.imagen_normalizada is not None:
             self._mostrar_imagen_gris(self.lbl_base_espacial, self.imagen_normalizada, "base_espacial")
 
     def limpiar_frecuencia(self):
         self.imagen_base_frecuencia = None
+        self.imagen_ruido_frecuencia = None
         self.espectro_visible = None
         self.espectro_filtrado_visible = None
         self.imagen_reconstruida_frecuencia = None
@@ -477,8 +523,9 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_sobel_magnitud_frecuencia = None
         self.imagen_binaria_frecuencia = None
         self.imagen_bbox_frecuencia = None
-        self.caja_frecuencia = None
+        self.objetos_frecuencia = []
         for etiqueta in (
+            self.lbl_ruido_frecuencia,
             self.lbl_espectro,
             self.lbl_espectro_filtrado,
             self.lbl_reconstruida_frecuencia,
@@ -489,6 +536,7 @@ class VentanaPrincipal(tk.Tk):
             self.lbl_bbox_frecuencia,
         ):
             self._limpiar_etiqueta_imagen(etiqueta)
+        self._limpiar_etiqueta_texto(self.lbl_metricas_frecuencia)
         if self.imagen_normalizada is not None:
             self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_normalizada, "base_frecuencia")
 
@@ -499,6 +547,9 @@ class VentanaPrincipal(tk.Tk):
     def _actualizar_valor_ruido(self, valor):
         self.valor_ruido.configure(text=f"{float(valor):.2f}")
 
+    def _actualizar_valor_ruido_frecuencia(self, valor):
+        self.valor_ruido_frecuencia.configure(text=f"{float(valor):.2f}")
+
     def _actualizar_umbral_espacial(self, valor):
         self.valor_umbral_espacial.configure(text=str(int(float(valor))))
 
@@ -507,6 +558,28 @@ class VentanaPrincipal(tk.Tk):
 
     def _actualizar_umbral_frecuencia(self, valor):
         self.valor_umbral_frecuencia.configure(text=str(int(float(valor))))
+
+    def _mostrar_metricas(self, etiqueta, objetos):
+        if not objetos:
+            etiqueta.configure(text="No se detectaron objetos.")
+            return
+
+        lineas = ["Obj | x  y  ancho alto | area | perim."]
+        for indice, objeto in enumerate(objetos, start=1):
+            lineas.append(
+                f"{indice:>3} | "
+                f"{objeto['x']:>3} {objeto['y']:>3} "
+                f"{objeto['ancho']:>5} {objeto['alto']:>4} | "
+                f"{objeto['area']:>4} | {objeto['perimetro']:>5}"
+            )
+            if indice >= 12 and len(objetos) > 12:
+                lineas.append(f"... {len(objetos) - 12} objetos mas")
+                break
+
+        etiqueta.configure(text="\n".join(lineas))
+
+    def _limpiar_etiqueta_texto(self, etiqueta):
+        etiqueta.configure(text="Sin objetos")
 
     def _mostrar_imagen_gris(self, etiqueta, arreglo, clave):
         imagen_rgb = convertir_gris_a_rgb(arreglo)

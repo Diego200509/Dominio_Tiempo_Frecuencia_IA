@@ -165,6 +165,105 @@ def calcular_bounding_box_componentes_significativos_manual(imagen_binaria, frac
     return tuple(caja_final)
 
 
+def calcular_perimetro_componente_manual(imagen_binaria, pixeles):
+    alto, ancho = imagen_binaria.shape
+    perimetro = 0
+
+    for x, y in pixeles:
+        es_borde = False
+        vecinos = ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
+
+        for vecino_x, vecino_y in vecinos:
+            if vecino_x < 0 or vecino_x >= ancho or vecino_y < 0 or vecino_y >= alto:
+                es_borde = True
+            elif int(imagen_binaria[vecino_y, vecino_x]) != 255:
+                es_borde = True
+
+        if es_borde:
+            perimetro += 1
+
+    return perimetro
+
+
+def detectar_objetos_manual(imagen_binaria, fraccion_minima=0.08):
+    alto, ancho = imagen_binaria.shape
+    visitado = np.zeros((alto, ancho), dtype=np.uint8)
+    componentes = []
+    mayor_area = 0
+
+    for y in range(alto):
+        for x in range(ancho):
+            if visitado[y, x] == 1 or int(imagen_binaria[y, x]) != 255:
+                continue
+
+            pila = [(x, y)]
+            pixeles = []
+            visitado[y, x] = 1
+            x_min = x
+            x_max = x
+            y_min = y
+            y_max = y
+
+            while pila:
+                actual_x, actual_y = pila.pop()
+                pixeles.append((actual_x, actual_y))
+
+                if actual_x < x_min:
+                    x_min = actual_x
+                if actual_x > x_max:
+                    x_max = actual_x
+                if actual_y < y_min:
+                    y_min = actual_y
+                if actual_y > y_max:
+                    y_max = actual_y
+
+                for dy in range(-1, 2):
+                    for dx in range(-1, 2):
+                        if dx == 0 and dy == 0:
+                            continue
+
+                        vecino_x = actual_x + dx
+                        vecino_y = actual_y + dy
+                        if vecino_x < 0 or vecino_x >= ancho or vecino_y < 0 or vecino_y >= alto:
+                            continue
+                        if visitado[vecino_y, vecino_x] == 1:
+                            continue
+                        if int(imagen_binaria[vecino_y, vecino_x]) != 255:
+                            continue
+
+                        visitado[vecino_y, vecino_x] = 1
+                        pila.append((vecino_x, vecino_y))
+
+            area = len(pixeles)
+            if area > mayor_area:
+                mayor_area = area
+            componentes.append((area, x_min, y_min, x_max, y_max, pixeles))
+
+    if mayor_area == 0:
+        return []
+
+    area_minima = max(4, int(mayor_area * float(fraccion_minima)))
+    objetos = []
+
+    for area, x_min, y_min, x_max, y_max, pixeles in componentes:
+        if area < area_minima:
+            continue
+
+        objetos.append(
+            {
+                "x": x_min,
+                "y": y_min,
+                "ancho": x_max - x_min + 1,
+                "alto": y_max - y_min + 1,
+                "area": area,
+                "perimetro": calcular_perimetro_componente_manual(imagen_binaria, pixeles),
+            }
+        )
+
+    objetos.sort(key=lambda objeto: (objeto["y"], objeto["x"]))
+    return objetos
+
+
 def dibujar_bounding_box_manual(imagen_base, caja, color=(255, 0, 0), grosor=3):
     if imagen_base.ndim == 2:
         salida = convertir_gris_a_rgb(imagen_base)
@@ -213,7 +312,25 @@ def dibujar_bounding_box_manual(imagen_base, caja, color=(255, 0, 0), grosor=3):
     return salida.astype(np.uint8)
 
 
+def dibujar_bounding_boxes_manual(imagen_base, objetos, color=(255, 0, 0), grosor=3):
+    if imagen_base.ndim == 2:
+        salida = convertir_gris_a_rgb(imagen_base)
+    else:
+        salida = np.copy(imagen_base).astype(np.uint8)
+
+    for objeto in objetos:
+        caja = (
+            objeto["x"],
+            objeto["y"],
+            objeto["x"] + objeto["ancho"] - 1,
+            objeto["y"] + objeto["alto"] - 1,
+        )
+        salida = dibujar_bounding_box_manual(salida, caja, color=color, grosor=grosor)
+
+    return salida.astype(np.uint8)
+
+
 def detectar_y_dibujar_bounding_box_manual(imagen_binaria, imagen_base, grosor=3):
-    caja = calcular_bounding_box_componentes_significativos_manual(imagen_binaria)
-    imagen_con_caja = dibujar_bounding_box_manual(imagen_base, caja, grosor=grosor)
-    return caja, imagen_con_caja
+    objetos = detectar_objetos_manual(imagen_binaria)
+    imagen_con_caja = dibujar_bounding_boxes_manual(imagen_base, objetos, grosor=grosor)
+    return objetos, imagen_con_caja

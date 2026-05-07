@@ -23,52 +23,68 @@ def agregar_padding_replicado_manual(imagen_gris, radio=1):
     return salida
 
 
-def obtener_ventana_3x3(imagen_con_padding, y, x):
+def obtener_ventana_manual(imagen_con_padding, y, x, tamano_ventana=3):
     valores = []
-    for dy in range(3):
-        for dx in range(3):
+    for dy in range(tamano_ventana):
+        for dx in range(tamano_ventana):
             valores.append(int(imagen_con_padding[y + dy, x + dx]))
     return valores
 
 
-def filtro_media_manual(imagen_gris):
+def validar_tamano_ventana(tamano_ventana):
+    tamano = int(tamano_ventana)
+    if tamano not in (3, 5, 7, 11):
+        raise ValueError("El tamano de ventana debe ser 3, 5, 7 u 11")
+    return tamano
+
+
+def filtro_media_manual(imagen_gris, tamano_ventana=3):
+    tamano_ventana = validar_tamano_ventana(tamano_ventana)
+    radio = tamano_ventana // 2
     alto, ancho = imagen_gris.shape
-    padding = agregar_padding_replicado_manual(imagen_gris, radio=1)
+    padding = agregar_padding_replicado_manual(imagen_gris, radio=radio)
     salida = np.zeros((alto, ancho), dtype=np.uint8)
+    cantidad_valores = tamano_ventana * tamano_ventana
 
     for y in range(alto):
         for x in range(ancho):
             suma = 0
-            for dy in range(3):
-                for dx in range(3):
+            for dy in range(tamano_ventana):
+                for dx in range(tamano_ventana):
                     suma += int(padding[y + dy, x + dx])
-            salida[y, x] = int(round(suma / 9))
+            salida[y, x] = int(round(suma / cantidad_valores))
 
     return salida
 
 
-def filtro_mediana_manual(imagen_gris):
+def filtro_mediana_manual(imagen_gris, tamano_ventana=3):
+    tamano_ventana = validar_tamano_ventana(tamano_ventana)
+    radio = tamano_ventana // 2
     alto, ancho = imagen_gris.shape
-    padding = agregar_padding_replicado_manual(imagen_gris, radio=1)
+    padding = agregar_padding_replicado_manual(imagen_gris, radio=radio)
     salida = np.zeros((alto, ancho), dtype=np.uint8)
+    indice_central = (tamano_ventana * tamano_ventana) // 2
 
     for y in range(alto):
         for x in range(ancho):
-            valores = obtener_ventana_3x3(padding, y, x)
+            valores = obtener_ventana_manual(padding, y, x, tamano_ventana)
             valores_ordenados = sorted(valores)
-            salida[y, x] = valores_ordenados[4]
+            salida[y, x] = valores_ordenados[indice_central]
 
     return salida
 
 
-def filtro_moda_manual(imagen_gris):
+def filtro_moda_manual(imagen_gris, tamano_ventana=3):
+    tamano_ventana = validar_tamano_ventana(tamano_ventana)
+    radio = tamano_ventana // 2
     alto, ancho = imagen_gris.shape
-    padding = agregar_padding_replicado_manual(imagen_gris, radio=1)
+    padding = agregar_padding_replicado_manual(imagen_gris, radio=radio)
     salida = np.zeros((alto, ancho), dtype=np.uint8)
+    indice_central = (tamano_ventana * tamano_ventana) // 2
 
     for y in range(alto):
         for x in range(ancho):
-            valores = obtener_ventana_3x3(padding, y, x)
+            valores = obtener_ventana_manual(padding, y, x, tamano_ventana)
             frecuencias = {}
 
             for valor in valores:
@@ -76,7 +92,7 @@ def filtro_moda_manual(imagen_gris):
                     frecuencias[valor] = 0
                 frecuencias[valor] += 1
 
-            mejor_valor = valores[4]
+            mejor_valor = valores[indice_central]
             mejor_frecuencia = -1
             for valor in valores:
                 frecuencia = frecuencias[valor]
@@ -89,11 +105,11 @@ def filtro_moda_manual(imagen_gris):
     return salida
 
 
-def aplicar_filtro_manual(imagen_gris, nombre_filtro):
+def aplicar_filtro_manual(imagen_gris, nombre_filtro, tamano_ventana=3):
     if nombre_filtro == "Filtro de media":
-        return filtro_media_manual(imagen_gris)
+        return filtro_media_manual(imagen_gris, tamano_ventana)
     if nombre_filtro == "Filtro de mediana":
-        return filtro_mediana_manual(imagen_gris)
+        return filtro_mediana_manual(imagen_gris, tamano_ventana)
     if nombre_filtro == "Filtro de moda":
-        return filtro_moda_manual(imagen_gris)
+        return filtro_moda_manual(imagen_gris, tamano_ventana)
     raise ValueError("Filtro no reconocido")

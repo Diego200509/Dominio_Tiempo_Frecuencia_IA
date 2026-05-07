@@ -1,7 +1,6 @@
 import math
 import numpy as np
 
-from logica.conversion import preparar_gris_para_frecuencia
 from logica.utilidades import normalizar_a_uint8_manual, normalizar_reconstruccion_a_uint8_manual
 
 
@@ -158,16 +157,17 @@ def aplicar_mascara_manual(espectro_centrado, mascara):
 
 
 def preparar_transformada_frecuencia(imagen_gris, tamano=1024, usar_numpy_fft=True):
-    imagen_pequena = preparar_gris_para_frecuencia(imagen_gris, tamano=tamano)
+    # La FFT se aplica sobre la imagen normalizada original, sin recortar ni redimensionar.
+    imagen_base = imagen_gris.astype(np.uint8)
 
     if usar_numpy_fft:
-        espectro = dft_2d_numpy(imagen_pequena)
+        espectro = dft_2d_numpy(imagen_base)
     else:
-        espectro = dft_2d_manual(imagen_pequena)
+        espectro = dft_2d_manual(imagen_base)
 
     espectro_centrado = centrar_espectro_manual(espectro)
     espectro_visible = calcular_espectro_magnitud_manual(espectro_centrado)
-    return imagen_pequena, espectro_centrado, espectro_visible
+    return imagen_base, espectro_centrado, espectro_visible
 
 
 def reconstruir_desde_mascara(espectro_centrado, mascara, usar_numpy_fft=True):

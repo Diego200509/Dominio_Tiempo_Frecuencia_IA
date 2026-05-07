@@ -24,6 +24,7 @@ RGB original
 -> binarizacion final
 -> deteccion del objeto
 -> bounding box final
+-> area y perimetro
 ```
 
 ## Instalacion
@@ -74,7 +75,7 @@ El flujo espacial es:
 ```text
 imagen gris normalizada
 -> ruido sal y pimienta
--> filtro espacial 3x3
+-> filtro espacial parametrizable
 -> pasa-alto espacial
 -> Sobel
 -> binarizacion final
@@ -88,11 +89,11 @@ excesivamente la imagen:
 - Pimienta: algunos pixeles cambian a `0`.
 - Sal: algunos pixeles cambian a `255`.
 
-Los filtros espaciales se aplican recorriendo ventanas `3x3` con padding por
-replicacion de bordes:
+Los filtros espaciales se aplican recorriendo ventanas parametrizables
+`3x3`, `5x5`, `7x7` u `11x11` con padding por replicacion de bordes:
 
-- Media: suma los 9 valores y divide para 9.
-- Mediana: ordena los 9 valores y toma el central.
+- Media: suma los valores de la ventana y divide para la cantidad total.
+- Mediana: ordena los valores de la ventana y toma el central.
 - Moda: cuenta frecuencias y toma el valor mas repetido.
 
 Despues del suavizado se aplica un pasa-alto espacial manual con la mascara:
@@ -148,6 +149,7 @@ El dominio de frecuencia tambien parte de la imagen gris normalizada:
 
 ```text
 imagen gris normalizada
+-> ruido sal y pimienta
 -> Fourier
 -> centrar espectro
 -> mascara circular pasa-bajo o pasa-alto
@@ -165,6 +167,9 @@ Se permite y se usa `numpy.fft` para la transformada:
 
 El centrado/descentrado y las mascaras se calculan manualmente en la logica del
 proyecto.
+
+La FFT trabaja sobre la imagen normalizada con sus dimensiones originales; no
+se recorta ni se redimensiona la imagen para el procesamiento principal.
 
 La mascara circular se calcula con:
 
@@ -211,13 +216,17 @@ El bounding box se calcula manualmente agrupando los componentes blancos
 significativos de la imagen binaria final. Esto permite rodear objetos formados
 por varias partes separadas, como letras, y descartar puntos pequenos de ruido:
 
-- `x_min`
-- `x_max`
-- `y_min`
-- `y_max`
+- `x`
+- `y`
+- `ancho`
+- `alto`
+- `area`
+- `perimetro`
 
-Luego se dibuja una caja roja sobre la imagen procesada para visualizar el
-objeto detectado.
+El area corresponde a la cantidad de pixeles blancos del objeto. El perimetro
+se aproxima contando los pixeles blancos que tienen al menos un vecino de fondo
+en vecindad de 4 conexiones. Luego se dibujan cajas rojas sobre la imagen
+procesada y se muestra una tabla con las metricas de cada objeto detectado.
 
 ## Restricciones
 
@@ -268,7 +277,7 @@ recursos/
 - Calculo de histogramas.
 - Ruido sal y pimienta.
 - Padding por replicacion.
-- Filtros de media, mediana y moda con ventana `3x3`.
+- Filtros de media, mediana y moda con ventana `3x3`, `5x5`, `7x7` u `11x11`.
 - Pasa-alto espacial con mascara `3x3`.
 - Sobel X, Sobel Y y magnitud con kernels manuales.
 - Binarizacion por umbral.
@@ -277,4 +286,4 @@ recursos/
 - Visualizacion del espectro con la mascara aplicada.
 - Aplicacion manual de mascara al espectro.
 - Normalizacion manual de espectro y reconstruccion.
-- Calculo manual del bounding box.
+- Calculo manual del bounding box, area y perimetro por objeto.
