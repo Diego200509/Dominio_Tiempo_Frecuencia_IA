@@ -17,7 +17,6 @@ from logica.histograma import calcular_histograma_manual, normalizar_histograma_
 from logica.ruido import agregar_ruido_sal_pimienta_manual
 
 
-TAMANO_FRECUENCIA = 512
 UMBRAL_BINARIZACION = 128
 ANCHO_VISTA_IMAGEN = 340
 ALTO_VISTA_IMAGEN = 300
@@ -38,6 +37,7 @@ class VentanaPrincipal(tk.Tk):
         self.imagen_original = None
         self.imagen_gris = None
         self.imagen_normalizada = None
+        self.radio_maximo_frecuencia = 1
         self.grafico_histogramas = None
 
         self.imagen_con_ruido = None
@@ -290,10 +290,10 @@ class VentanaPrincipal(tk.Tk):
         self.combo_frecuencia.set(FILTRO_PASA_BAJO)
 
         ttk.Label(controles, text="Radio mascara", style="Subtitulo.TLabel").grid(row=2, column=0, sticky="w", pady=(14, 0))
-        self.valor_radio = ttk.Label(controles, text="120 px", style="Valor.TLabel")
+        self.valor_radio = ttk.Label(controles, text="1 px", style="Valor.TLabel")
         self.valor_radio.grid(row=2, column=2, sticky="w", padx=(10, 20), pady=(14, 0))
-        self.slider_radio = ttk.Scale(controles, from_=1, to=TAMANO_FRECUENCIA // 2, orient="horizontal", command=self._actualizar_radio)
-        self.slider_radio.set(120)
+        self.slider_radio = ttk.Scale(controles, from_=1, to=1, orient="horizontal", command=self._actualizar_radio)
+        self.slider_radio.set(1)
         self.slider_radio.grid(row=2, column=1, sticky="ew", padx=10, pady=(14, 0))
 
         ttk.Label(controles, text="Umbral binarizacion", style="Subtitulo.TLabel").grid(row=3, column=0, sticky="w", pady=(14, 0))
@@ -355,6 +355,7 @@ class VentanaPrincipal(tk.Tk):
 
         self._reiniciar_resultados_derivados()
         self._mostrar_preprocesamiento()
+        self._configurar_radio_frecuencia_para_imagen()
         self._mostrar_imagen_gris(self.lbl_base_espacial, self.imagen_normalizada, "base_espacial")
         self._mostrar_imagen_gris(self.lbl_base_frecuencia, self.imagen_normalizada, "base_frecuencia")
 
@@ -440,7 +441,6 @@ class VentanaPrincipal(tk.Tk):
                 self.imagen_ruido_frecuencia,
                 radio,
                 tipo_filtro=tipo_filtro,
-                tamano=TAMANO_FRECUENCIA,
             )
 
             self.imagen_base_frecuencia = self.imagen_normalizada
@@ -555,6 +555,17 @@ class VentanaPrincipal(tk.Tk):
 
     def _actualizar_radio(self, valor):
         self.valor_radio.configure(text=f"{int(float(valor))} px")
+
+    def _configurar_radio_frecuencia_para_imagen(self):
+        if self.imagen_normalizada is None:
+            return
+
+        alto, ancho = self.imagen_normalizada.shape
+        self.radio_maximo_frecuencia = max(1, int(min(alto, ancho) / 2))
+        radio_inicial = max(1, int(self.radio_maximo_frecuencia * 0.45))
+        self.slider_radio.configure(to=self.radio_maximo_frecuencia)
+        self.slider_radio.set(radio_inicial)
+        self.valor_radio.configure(text=f"{radio_inicial} px")
 
     def _actualizar_umbral_frecuencia(self, valor):
         self.valor_umbral_frecuencia.configure(text=str(int(float(valor))))
